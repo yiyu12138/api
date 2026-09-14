@@ -101,4 +101,14 @@ async function downloadReleaseAsset(url, file, options) {
   }
 }
 
-module.exports = { compareVersions, validateBundleFilename, selectBundleTarget, validatePackageJson, parseFpkRelease, downloadReleaseAsset };
+function finishFpkUpdate(currentVersion, update, packageAvailable) {
+  if (/^\d+\.\d+\.\d+$/.test(update.targetVersion || '') && compareVersions(currentVersion, update.targetVersion) >= 0) {
+    return { ...update, state: 'success', message: '已升级到 v' + currentVersion, progress: 100 };
+  }
+  if (update.packageReady && packageAvailable) {
+    return { ...update, state: 'ready', progress: 100, message: 'FPK 已下载，但系统未完成覆盖升级。请保存安装包，在飞牛应用中心选择“手动安装”，不要先卸载旧版。' };
+  }
+  return { ...update, state: 'failed', packageReady: false, message: '更新未完成或安装包不完整，请重新下载' };
+}
+
+module.exports = { compareVersions, validateBundleFilename, selectBundleTarget, validatePackageJson, parseFpkRelease, downloadReleaseAsset, finishFpkUpdate };

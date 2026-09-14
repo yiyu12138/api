@@ -20,6 +20,7 @@ const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const UPDATE_STATUS_FILE = path.join(store.DATA_DIR, 'update-status.json');
 const APP_DIR = process.env.APP_DIR || path.join(__dirname, '..');
 const MAX_UPDATE_BYTES = 100 * 1024 * 1024;
+const FPK_UPDATE_FILE = process.env.FNOS_UPDATE_FILE || path.join(store.DATA_DIR, 'api-balance-update.fpk');
 // A shared short-lived snapshot prevents clients/ranges from independently re-fetching moving pages.
 const usageSnapshots = new Map();
 const SECURITY_HEADERS = securityHeaders(DEPLOYMENT_MODE);
@@ -197,11 +198,11 @@ async function checkLatestFpk() {
 }
 
 async function runFpkUpdate(info) {
-  const file = process.env.FNOS_UPDATE_FILE || path.join(store.DATA_DIR, 'api-balance-update.fpk');
+  const file = FPK_UPDATE_FILE;
   let previousProgress = -1;
   writeUpdateStatus('running', '正在下载 v' + info.latest + ' FPK', '', { targetVersion: info.latest, progress: 0 });
   try {
-    await updatePackage.downloadReleaseAsset(info.fpkUrl, file, {
+    const packageSize = await updatePackage.downloadReleaseAsset(info.fpkUrl, file, {
       expectedSize: info.fpkSize,
       maxBytes: MAX_UPDATE_BYTES,
       userAgent: 'api-balance/' + APP_VERSION,
@@ -213,17 +214,31 @@ async function runFpkUpdate(info) {
         }
       },
     });
+    const pending = { targetVersion: info.latest, packageSize, packageReady: true, progress: 100 };
+    const finish = () => {
+      const result = updatePackage.finishFpkUpdate(APP_VERSION, pending, fpkPackageAvailable(pending));
+      writeUpdateStatus(result.state, result.message, '', result);
+    };
     const installer = '/usr/local/bin/appcenter-cli';
-    if (!fs.existsSync(installer)) throw new Error('未找到飞牛应用中心安装命令');
-    writeUpdateStatus('installing', '下载完成，正在调用飞牛应用中心安装 v' + info.latest, '', { targetVersion: info.latest, progress: 100 });
+    if (!fs.existsSync(installer)) return finish();
+    writeUpdateStatus('installing', '下载完成，正在请求飞牛应用中心安装 v' + info.latest, '', pending);
     const child = execFile('sudo', ['-n', installer, 'install-fpk', file], { timeout: 10 * 60 * 1000 }, (error, stdout, stderr) => {
-      if (error) writeUpdateStatus('failed', String(stderr || stdout || error.message).trim().split(/\r?\n/).slice(-1)[0] || 'FPK 安装失败');
+      // A zero exit code can mean "already installed", not a successful upgrade.
+      finish();
     });
     child.unref();
   } catch (error) {
     fs.rmSync(file, { force: true });
     writeUpdateStatus('failed', error.message || 'FPK 更新失败');
   }
+}
+
+function fpkPackageAvailable(update) {
+  if (!update.packageReady || !/^\d+\.\d+\.\d+$/.test(update.targetVersion || '')) return false;
+  try {
+    const stat = fs.lstatSync(FPK_UPDATE_FILE);
+    return stat.isFile() && stat.size > 0 && stat.size === update.packageSize;
+  } catch { return false; }
 }
 
 async function runUpdate(proxy, source, label) {
@@ -523,6 +538,25 @@ async function handleApi(req, res, url) {
 
   if (p === '/api/update' && req.method === 'GET') {
     return sendJson(res, 200, { ok: true, data: readUpdateStatus() });
+  }
+
+  if (p === '/api/update/fpk' && req.method === 'GET') {
+    const update = readUpdateStatus();
+    if (DEPLOYMENT_MODE !== 'fnos' || update.state !== 'ready' || !fpkPackageAvailable(update)) {
+      return sendJson(res, 409, { ok: false, error: '没有完整的 FPK 安装包，请重新下载' });
+    }
+    const fd = fs.openSync(FPK_UPDATE_FILE, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile() || stat.size !== update.packageSize) {
+      fs.closeSync(fd);
+      return sendJson(res, 409, { ok: false, error: '安装包已变化，请重新下载' });
+    }
+    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': stat.size, 'Content-Disposition': 'attachment; filename="api-balance-v' + update.targetVersion + '.fpk"', 'Cache-Control': 'no-store' });
+    const stream = fs.createReadStream(FPK_UPDATE_FILE, { fd, autoClose: true });
+    stream.on('error', () => res.destroy());
+    res.on('close', () => stream.destroy());
+    stream.pipe(res);
+    return;
   }
 
   if (p === '/api/update' && req.method === 'POST') {
@@ -859,8 +893,9 @@ const server = http.createServer((req, res) => {
 });
 
 const startupUpdate = readUpdateStatus();
-if (startupUpdate.state === 'installing' && startupUpdate.targetVersion === APP_VERSION) {
-  writeUpdateStatus('success', '已升级到 v' + APP_VERSION, '', { targetVersion: APP_VERSION, progress: 100 });
+if (DEPLOYMENT_MODE === 'fnos' && ['installing', 'ready'].includes(startupUpdate.state)) {
+  const result = updatePackage.finishFpkUpdate(APP_VERSION, startupUpdate, fpkPackageAvailable(startupUpdate));
+  writeUpdateStatus(result.state, result.message, '', result);
 } else if (['queued', 'running', 'installing'].includes(startupUpdate.state)) {
   writeUpdateStatus('failed', '上次更新未完成，请重新尝试');
 }

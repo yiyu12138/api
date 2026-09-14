@@ -6,6 +6,19 @@ const os = require('node:os');
 const path = require('node:path');
 const updatePackage = require('./update-package');
 
+test('FPK install no-op keeps a ready package instead of claiming success or hanging', () => {
+  const pending = { targetVersion: '1.16.2', packageReady: true, packageSize: 123, state: 'installing' };
+  const ready = updatePackage.finishFpkUpdate('1.16.1', pending, true);
+  assert.equal(ready.state, 'ready');
+  assert.equal(ready.progress, 100);
+  assert.equal(ready.packageSize, 123);
+  assert.equal(updatePackage.finishFpkUpdate('1.16.1', ready, true).state, 'ready');
+  assert.equal(updatePackage.finishFpkUpdate('1.16.2', ready, true).state, 'success');
+  assert.equal(updatePackage.finishFpkUpdate('1.16.3', ready, false).state, 'success');
+  assert.equal(updatePackage.finishFpkUpdate('1.16.1', ready, false).state, 'failed');
+  assert.equal(updatePackage.finishFpkUpdate('1.16.1', { state: 'installing' }, false).state, 'failed');
+});
+
 test('selects main or newest version tag from a bundle', () => {
   const main = updatePackage.selectBundleTarget('a'.repeat(40) + ' refs/heads/main\n' + 'b'.repeat(40) + ' refs/tags/v2.0.0');
   assert.equal(main.ref, 'refs/heads/main');
