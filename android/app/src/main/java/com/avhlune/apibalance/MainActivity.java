@@ -4,6 +4,8 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.DownloadManager;
 import android.content.BroadcastReceiver;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -26,11 +28,15 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
+import androidx.core.content.FileProvider;
+
 import org.json.JSONObject;
 import java.io.File;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
+import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
 import java.security.Signature;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PSSParameterSpec;
@@ -49,6 +55,7 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> fileCallback;
     private volatile long updateDownloadId = -1;
     private Uri pendingInstallUri;
+    private boolean installerActive;
     private String pendingExport;
 
     private final BroadcastReceiver downloadReceiver = new BroadcastReceiver() {
@@ -62,11 +69,8 @@ public class MainActivity extends Activity {
                 if (status == DownloadManager.STATUS_SUCCESSFUL) {
                     long downloaded = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
                     long total = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
-                    sendDownloadState("completed", downloaded, total, 0);
                     updateDownloadId = -1;
-                    Uri uri = manager.getUriForDownloadedFile(id);
-                    if (uri != null) installApk(uri);
-                    else toast("无法读取下载的安装包");
+                    installDownloadedUpdate();
                 } else if (status == DownloadManager.STATUS_FAILED) {
                     int reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));
                     sendDownloadState("failed", 0, 0, reason);
@@ -130,9 +134,16 @@ public class MainActivity extends Activity {
             if (!installId.equals(payload.optString("installId")) || payload.optString("licenseId").isEmpty()) return false;
             long expiresAt = payload.optLong("expiresAt", 0);
             if (expiresAt > 0 && System.currentTimeMillis() >= expiresAt) return false;
-            Signature verifier = Signature.getInstance("RSASSA-PSS");
-            verifier.initVerify(KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(Base64.decode(LICENSE_PUBLIC_KEY, Base64.DEFAULT))));
-            verifier.setParameter(new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1));
+            PublicKey publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(Base64.decode(LICENSE_PUBLIC_KEY, Base64.DEFAULT)));
+            Signature verifier;
+            try {
+                verifier = Signature.getInstance("SHA256withRSA/PSS");
+                verifier.initVerify(publicKey);
+            } catch (NoSuchAlgorithmException unsupportedAndroidAlias) {
+                verifier = Signature.getInstance("RSASSA-PSS");
+                verifier.initVerify(publicKey);
+                verifier.setParameter(new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1));
+            }
             verifier.update(parts[0].getBytes(StandardCharsets.UTF_8));
             return verifier.verify(Base64.decode(parts[1], Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING));
         } catch (Exception error) { return false; }
@@ -188,6 +199,28 @@ public class MainActivity extends Activity {
         }
     }
 
+    private File downloadedUpdateFile() {
+        File directory = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+        return directory == null ? null : new File(directory, "api-balance-update.apk");
+    }
+
+    private void installDownloadedUpdate() {
+        File target = downloadedUpdateFile();
+        if (target == null || !target.isFile() || target.length() == 0) {
+            sendDownloadState("failed", 0, 0, 0);
+            toast("未找到已下载的安装包，请重新下载");
+            return;
+        }
+        try {
+            Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".files", target);
+            sendDownloadState("ready", target.length(), target.length(), 0);
+            installApk(uri);
+        } catch (Exception error) {
+            sendDownloadState("failed", target.length(), target.length(), 0);
+            toast("无法读取下载的安装包，请重新下载");
+        }
+    }
+
     private void trackDownload(long id) {
         DownloadManager manager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
         int lastStatus = -1;
@@ -231,7 +264,8 @@ public class MainActivity extends Activity {
             String message = "等待系统开始下载";
             if ("running".equals(state)) message = "正在下载安装包";
             else if ("paused".equals(state)) message = "下载已暂停，等待网络恢复";
-            else if ("completed".equals(state)) message = "下载完成，正在打开系统安装器";
+            else if ("ready".equals(state)) message = "安装包已下载，点击按钮打开系统安装器";
+            else if ("installing".equals(state)) message = "正在打开系统安装器";
             else if ("failed".equals(state)) message = reason > 0 ? "下载失败（错误码 " + reason + "）" : "下载失败，请检查网络后重试";
             detail.put("state", state);
             detail.put("progress", progress);
@@ -246,6 +280,7 @@ public class MainActivity extends Activity {
     private void installApk(Uri uri) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !getPackageManager().canRequestPackageInstalls()) {
             pendingInstallUri = uri;
+            sendDownloadState("ready", 0, 0, 0);
             startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName())));
             toast("请允许安装未知应用，然后返回继续更新");
             return;
@@ -253,8 +288,15 @@ public class MainActivity extends Activity {
         Intent install = new Intent(Intent.ACTION_VIEW)
             .setDataAndType(uri, "application/vnd.android.package-archive")
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
-        try { startActivity(install); }
-        catch (Exception error) { toast("无法打开系统安装器"); }
+        try {
+            installerActive = true;
+            sendDownloadState("installing", 0, 0, 0);
+            startActivity(install);
+        } catch (Exception error) {
+            installerActive = false;
+            sendDownloadState("failed", 0, 0, 0);
+            toast("无法打开系统安装器，请检查系统安装权限");
+        }
     }
 
     private void openExternal(Uri uri) {
@@ -273,6 +315,11 @@ public class MainActivity extends Activity {
             Uri uri = pendingInstallUri;
             pendingInstallUri = null;
             installApk(uri);
+        } else if (pendingInstallUri != null) {
+            sendDownloadState("ready", 0, 0, 0);
+        } else if (installerActive) {
+            installerActive = false;
+            sendDownloadState("ready", 0, 0, 0);
         }
     }
 
@@ -318,6 +365,14 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void httpRequest(String id, String value) { MainActivity.this.httpRequest(id, value); }
         @JavascriptInterface public void saveExport(String value) { runOnUiThread(() -> MainActivity.this.saveExport(value)); }
         @JavascriptInterface public void downloadUpdate() { runOnUiThread(MainActivity.this::downloadUpdate); }
+        @JavascriptInterface public void installDownloadedUpdate() { runOnUiThread(MainActivity.this::installDownloadedUpdate); }
+        @JavascriptInterface public boolean copyText(String value) {
+            try {
+                ClipboardManager clipboard = (ClipboardManager) MainActivity.this.getSystemService(Context.CLIPBOARD_SERVICE);
+                clipboard.setPrimaryClip(ClipData.newPlainText("API Balance", value == null ? "" : value));
+                return true;
+            } catch (Exception error) { return false; }
+        }
         @JavascriptInterface public void scheduleRefresh(double minutes) { BalanceWorker.schedule(MainActivity.this, Math.round(minutes)); }
     }
 

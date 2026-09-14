@@ -173,6 +173,10 @@
   }
 
   async function copyText(value) {
+    if (window.AndroidApp && typeof window.AndroidApp.copyText === 'function') {
+      if (!window.AndroidApp.copyText(String(value))) throw new Error('复制失败');
+      return;
+    }
     if (window.isSecureContext && navigator.clipboard) return navigator.clipboard.writeText(String(value));
     const input = document.createElement('textarea');
     input.value = String(value);
@@ -847,7 +851,8 @@
     const androidServer = androidStandalone ? '配置与查询数据保存在本机' : androidValue('getServerUrl');
     const downloadBusy = ['queued', 'running', 'paused'].includes(androidDownload?.state);
     const downloadProgress = Number.isFinite(Number(androidDownload?.progress)) ? Math.max(-1, Math.min(100, Number(androidDownload.progress))) : -1;
-    const installLabel = downloadBusy ? (downloadProgress >= 0 ? '正在下载 ' + downloadProgress + '%' : '准备下载…') : '立即更新';
+    const installReady = ['ready', 'installing', 'completed'].includes(androidDownload?.state);
+    const installLabel = downloadBusy ? (downloadProgress >= 0 ? '正在下载 ' + downloadProgress + '%' : '准备下载…') : installReady ? '打开系统安装器' : '立即更新';
     const versionState = versionChecking ? '正在检查新版本…' : versionInfo?.error ? '版本检查失败' : versionInfo?.updateAvailable ? '发现 v' + versionInfo.latest : versionInfo ? '已是最新 v' + versionInfo.current : '尚未检查版本';
     let html = '<section class="panel update-panel"><div class="phead"><span class="n">程序更新</span><span class="update-status ' + esc(update.state || 'idle') + '">' + esc(labels[update.state] || '尚未更新') + '</span><button type="button" class="btn update-check" data-act="check-update"' + (versionChecking ? ' disabled' : '') + '>' + icon('refresh') + ' 检查更新</button></div>';
     if (androidVersion) html += '<div class="android-update-card' + (androidStandalone ? ' standalone' : '') + '"><div><strong>' + (androidStandalone ? 'Android 独立版' : 'Android 应用') + '</strong><span class="android-version">v' + esc(androidVersion) + '</span><small>' + esc(androidServer) + '</small></div><div>' + (androidStandalone ? '' : '<button type="button" class="btn" data-act="android-server">修改服务器</button>') + '<button type="button" class="btn primary android-install" data-act="android-update"' + (downloadBusy ? ' disabled' : '') + '>' + icon(downloadBusy ? 'refresh' : 'download') + '<span>' + esc(installLabel) + '</span></button></div><p>安装包来自本项目 GitHub Release；下载完成后会打开 Android 系统安装器，首次使用需允许本应用安装更新。</p></div>';
@@ -1403,9 +1408,11 @@
     if (action === 'android-update') {
       try {
         if (!window.AndroidApp || typeof window.AndroidApp.downloadUpdate !== 'function') throw new Error('当前不是 Android 应用');
+        const reopenInstaller = ['ready', 'installing', 'completed'].includes(androidDownload?.state);
         androidDownload = { state: 'queued', progress: -1, downloaded: 0, total: 0, message: '正在准备下载' };
         renderMainRaw();
-        window.AndroidApp.downloadUpdate();
+        if (reopenInstaller && typeof window.AndroidApp.installDownloadedUpdate === 'function') window.AndroidApp.installDownloadedUpdate();
+        else window.AndroidApp.downloadUpdate();
       } catch (error) {
         androidDownload = { state: 'failed', progress: -1, downloaded: 0, total: 0, message: error.message || '无法启动下载' };
         renderMainRaw();
@@ -1871,7 +1878,7 @@
     };
     if (DATA) renderMainRaw();
     if (androidDownload.state === 'failed' && previous !== 'failed') toast(androidDownload.message, 'bad');
-    if (androidDownload.state === 'completed' && previous !== 'completed') toast('下载完成，正在打开系统安装器', 'ok');
+    if (androidDownload.state === 'ready' && previous === 'installing') toast('安装未完成，可再次打开系统安装器', 'bad');
   });
 
   bootstrap();
