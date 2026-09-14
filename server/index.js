@@ -20,7 +20,9 @@ const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const UPDATE_STATUS_FILE = path.join(store.DATA_DIR, 'update-status.json');
 const APP_DIR = process.env.APP_DIR || path.join(__dirname, '..');
 const MAX_UPDATE_BYTES = 100 * 1024 * 1024;
-const FPK_UPDATE_FILE = process.env.FNOS_UPDATE_FILE || path.join(store.DATA_DIR, 'api-balance-update.fpk');
+const FNOS_REPOSITORY = 'https://github.com/yiyu12138/api.git';
+const FNOS_RUNTIME_DIR = path.join(store.DATA_DIR, 'runtime');
+const FNOS_UPDATE_MARKER = path.join(store.DATA_DIR, 'runtime-update-pending');
 // A shared short-lived snapshot prevents clients/ranges from independently re-fetching moving pages.
 const usageSnapshots = new Map();
 const SECURITY_HEADERS = securityHeaders(DEPLOYMENT_MODE);
@@ -137,8 +139,12 @@ function gitEnv(proxy) {
 const { compareVersions } = updatePackage;
 
 function execGit(args, proxy, timeout) {
+  return execGitAt(APP_DIR, args, proxy, timeout);
+}
+
+function execGitAt(cwd, args, proxy, timeout) {
   return new Promise((resolve, reject) => {
-    execFile('git', ['-c', 'safe.directory=' + APP_DIR, '-C', APP_DIR, ...args], {
+    execFile('git', ['-c', 'safe.directory=' + cwd, '-C', cwd, ...args], {
       env: gitEnv(proxy), timeout: timeout || 30000, maxBuffer: 1024 * 1024,
     }, (error, stdout, stderr) => {
       if (error) {
@@ -184,61 +190,44 @@ async function checkLatestVersion(proxy, mirrorUrl) {
   return { current: APP_VERSION, latest, updateAvailable: compareVersions(latest, APP_VERSION) > 0, source: selected.label, details, detailError, checkedAt: Date.now() };
 }
 
-async function checkLatestFpk() {
+async function checkLatestFnosRelease() {
   try {
     const response = await fetch('https://api.github.com/repos/yiyu12138/api/releases/latest', {
       headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'api-balance/' + APP_VERSION },
       signal: AbortSignal.timeout(15000),
     });
     if (!response.ok) throw new Error('GitHub 返回 HTTP ' + response.status);
-    return { ...updatePackage.parseFpkRelease(await response.json(), APP_VERSION), checkedAt: Date.now() };
+    return { ...updatePackage.parseRelease(await response.json(), APP_VERSION), checkedAt: Date.now() };
   } catch (error) {
     return { current: APP_VERSION, latest: '', updateAvailable: false, error: error.message || '版本检查失败', checkedAt: Date.now() };
   }
 }
 
-async function runFpkUpdate(info) {
-  const file = FPK_UPDATE_FILE;
-  let previousProgress = -1;
-  writeUpdateStatus('running', '正在下载 v' + info.latest + ' FPK', '', { targetVersion: info.latest, progress: 0 });
+async function runFnosUpdate(info) {
+  const next = path.join(store.DATA_DIR, 'runtime-next');
+  const previous = path.join(store.DATA_DIR, 'runtime-previous');
+  writeUpdateStatus('running', '正在从 GitHub 拉取 v' + info.latest + ' 程序代码', '', { targetVersion: info.latest, progress: 10 });
   try {
-    const packageSize = await updatePackage.downloadReleaseAsset(info.fpkUrl, file, {
-      expectedSize: info.fpkSize,
-      maxBytes: MAX_UPDATE_BYTES,
-      userAgent: 'api-balance/' + APP_VERSION,
-      onProgress(downloaded, total) {
-        const progress = total > 0 ? Math.min(99, Math.floor(downloaded * 100 / total)) : 0;
-        if (progress >= previousProgress + 5) {
-          previousProgress = progress;
-          writeUpdateStatus('running', '正在下载 v' + info.latest + ' FPK', '', { targetVersion: info.latest, progress });
-        }
-      },
-    });
-    const pending = { targetVersion: info.latest, packageSize, packageReady: true, progress: 100 };
-    const finish = () => {
-      const result = updatePackage.finishFpkUpdate(APP_VERSION, pending, fpkPackageAvailable(pending));
-      writeUpdateStatus(result.state, result.message, '', result);
-    };
-    const installer = '/usr/local/bin/appcenter-cli';
-    if (!fs.existsSync(installer)) return finish();
-    writeUpdateStatus('installing', '下载完成，正在请求飞牛应用中心安装 v' + info.latest, '', pending);
-    const child = execFile('sudo', ['-n', installer, 'install-fpk', file], { timeout: 10 * 60 * 1000 }, (error, stdout, stderr) => {
-      // A zero exit code can mean "already installed", not a successful upgrade.
-      finish();
-    });
-    child.unref();
+    fs.rmSync(next, { recursive: true, force: true });
+    await execGitAt(store.DATA_DIR, ['clone', '--quiet', '--depth', '1', '--filter=blob:none', '--sparse', '--branch', 'v' + info.latest, FNOS_REPOSITORY, path.basename(next)], '', 120000);
+    await execGitAt(next, ['sparse-checkout', 'set', 'server', 'public'], '', 30000);
+    const version = updatePackage.validatePackageJson(fs.readFileSync(path.join(next, 'package.json'), 'utf8'), APP_VERSION);
+    if (version !== info.latest) throw new Error('GitHub 版本标签与 Release 不一致，已拒绝更新');
+    fs.rmSync(previous, { recursive: true, force: true });
+    if (fs.existsSync(FNOS_RUNTIME_DIR)) fs.renameSync(FNOS_RUNTIME_DIR, previous);
+    try { fs.renameSync(next, FNOS_RUNTIME_DIR); }
+    catch (error) {
+      if (!fs.existsSync(FNOS_RUNTIME_DIR) && fs.existsSync(previous)) fs.renameSync(previous, FNOS_RUNTIME_DIR);
+      throw error;
+    }
+    fs.writeFileSync(FNOS_UPDATE_MARKER, version, { mode: 0o600 });
+    const commit = await execGitAt(FNOS_RUNTIME_DIR, ['rev-parse', '--short', 'HEAD'], '', 10000).catch(() => '');
+    writeUpdateStatus('success', '代码更新完成，正在重启到 v' + version, commit, { targetVersion: version, progress: 100 });
+    setTimeout(() => process.exit(75), 800);
   } catch (error) {
-    fs.rmSync(file, { force: true });
-    writeUpdateStatus('failed', error.message || 'FPK 更新失败');
+    fs.rmSync(next, { recursive: true, force: true });
+    writeUpdateStatus('failed', error.detail || error.message || '飞牛代码更新失败');
   }
-}
-
-function fpkPackageAvailable(update) {
-  if (!update.packageReady || !/^\d+\.\d+\.\d+$/.test(update.targetVersion || '')) return false;
-  try {
-    const stat = fs.lstatSync(FPK_UPDATE_FILE);
-    return stat.isFile() && stat.size > 0 && stat.size === update.packageSize;
-  } catch { return false; }
 }
 
 async function runUpdate(proxy, source, label) {
@@ -509,7 +498,7 @@ async function handleApi(req, res, url) {
 
   if (p === '/api/version' && req.method === 'GET') {
     if (DEPLOYMENT_MODE === 'fnos') {
-      return sendJson(res, 200, { ok: true, data: await checkLatestFpk() });
+      return sendJson(res, 200, { ok: true, data: await checkLatestFnosRelease() });
     }
     const cfg = store.get();
     return sendJson(res, 200, { ok: true, data: await checkLatestVersion(cfg.proxy?.url || '', cfg.proxy?.mirrorUrl || '') });
@@ -540,40 +529,21 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, { ok: true, data: readUpdateStatus() });
   }
 
-  if (p === '/api/update/fpk' && req.method === 'GET') {
-    const update = readUpdateStatus();
-    if (DEPLOYMENT_MODE !== 'fnos' || update.state !== 'ready' || !fpkPackageAvailable(update)) {
-      return sendJson(res, 409, { ok: false, error: '没有完整的 FPK 安装包，请重新下载' });
-    }
-    const fd = fs.openSync(FPK_UPDATE_FILE, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
-    const stat = fs.fstatSync(fd);
-    if (!stat.isFile() || stat.size !== update.packageSize) {
-      fs.closeSync(fd);
-      return sendJson(res, 409, { ok: false, error: '安装包已变化，请重新下载' });
-    }
-    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': stat.size, 'Content-Disposition': 'attachment; filename="api-balance-v' + update.targetVersion + '.fpk"', 'Cache-Control': 'no-store' });
-    const stream = fs.createReadStream(FPK_UPDATE_FILE, { fd, autoClose: true });
-    stream.on('error', () => res.destroy());
-    res.on('close', () => stream.destroy());
-    stream.pipe(res);
-    return;
-  }
-
   if (p === '/api/update' && req.method === 'POST') {
     const current = readUpdateStatus();
     if (['queued', 'running', 'installing'].includes(current.state)) {
       return sendJson(res, 409, { ok: false, error: '更新正在进行中', data: current });
     }
     if (DEPLOYMENT_MODE === 'fnos') {
-      const latest = await checkLatestFpk();
+      const latest = await checkLatestFnosRelease();
       if (latest.error) return sendJson(res, 502, { ok: false, error: latest.error });
       if (!latest.updateAvailable) return sendJson(res, 409, { ok: false, error: '当前已是最新版本' });
       if (['queued', 'running', 'installing'].includes(readUpdateStatus().state)) {
         return sendJson(res, 409, { ok: false, error: '更新正在进行中' });
       }
-      writeUpdateStatus('queued', '等待下载 FPK', '', { targetVersion: latest.latest, progress: 0 });
+      writeUpdateStatus('queued', '等待更新程序代码', '', { targetVersion: latest.latest, progress: 0 });
       sendJson(res, 202, { ok: true, data: readUpdateStatus() });
-      setImmediate(() => runFpkUpdate(latest));
+      setImmediate(() => runFnosUpdate(latest));
       return;
     }
     try {
@@ -597,7 +567,7 @@ async function handleApi(req, res, url) {
   if (p === '/api/update/file' && req.method === 'POST') {
     if (DEPLOYMENT_MODE === 'fnos') {
       req.resume();
-      return sendJson(res, 409, { ok: false, error: '飞牛版请通过应用中心或新版 FPK 升级' });
+      return sendJson(res, 409, { ok: false, error: '飞牛版请直接使用 GitHub 代码更新' });
     }
     const current = readUpdateStatus();
     if (current.state === 'queued' || current.state === 'running') {
@@ -893,14 +863,12 @@ const server = http.createServer((req, res) => {
 });
 
 const startupUpdate = readUpdateStatus();
-if (DEPLOYMENT_MODE === 'fnos' && ['installing', 'ready'].includes(startupUpdate.state)) {
-  const result = updatePackage.finishFpkUpdate(APP_VERSION, startupUpdate, fpkPackageAvailable(startupUpdate));
-  writeUpdateStatus(result.state, result.message, '', result);
-} else if (['queued', 'running', 'installing'].includes(startupUpdate.state)) {
+if (['queued', 'running', 'installing'].includes(startupUpdate.state)) {
   writeUpdateStatus('failed', '上次更新未完成，请重新尝试');
 }
 
 server.listen(PORT, () => {
+  if (DEPLOYMENT_MODE === 'fnos') fs.rmSync(FNOS_UPDATE_MARKER, { force: true });
   const cfg = store.get();
   console.log('API 余额面板已启动: http://0.0.0.0:' + PORT);
   console.log('数据目录: ' + store.DATA_DIR + '，站点数: ' + cfg.stations.length);

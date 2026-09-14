@@ -23,7 +23,7 @@ API Balance 不是 API 中转或计费服务。它只读取用户配置的官方
 | 平台 | 安装包或方式 | 数据位置 | 应用内更新 |
 | --- | --- | --- | --- |
 | Docker / Node.js | 克隆仓库或 Docker Compose | `data/` | GitHub、备用仓库或 `.bundle` |
-| 飞牛 fnOS | `api-balance-vX.Y.Z.fpk` | 飞牛应用数据目录 | 应用内下载并调用飞牛应用中心覆盖升级 |
+| 飞牛 fnOS | `api-balance-vX.Y.Z.fpk` | 飞牛应用数据目录 | 首次安装 FPK，后续应用内拉取代码更新 |
 | Android 8.0+ | `api-balance.apk` | 应用私有目录 | 下载 APK 并打开系统安装器 |
 
 ### Docker
@@ -52,7 +52,7 @@ curl http://127.0.0.1:19999/api/health
 2. 在飞牛应用中心选择手动安装，并在向导中选择未占用的端口。
 3. 从飞牛桌面打开 API Balance。
 
-FPK 是飞牛原生应用，由系统提供的 `nodejs_v22` 运行时启动，不创建 Docker 容器。安装同一应用包名的更高版本会保留配置和历史；不要先卸载旧版。详见[飞牛 fnOS 安装](docs/飞牛fnOS安装.md)。
+FPK 是飞牛原生应用，由系统提供的 `nodejs_v22` 运行时启动，不创建 Docker 容器。首次安装 FPK 后，后续版本可在程序更新页直接拉取 GitHub 代码并自动重启；配置、密钥、历史和激活状态不会被替换。详见[飞牛 fnOS 安装](docs/飞牛fnOS安装.md)。
 
 ### Android
 
@@ -143,7 +143,7 @@ npm start
 ## 更新与备份
 
 - Docker：程序更新页支持 GitHub、可信备用 Git 仓库和 Release `.bundle`；涉及镜像或依赖变化时仍需执行 `docker compose up -d --build`。
-- 飞牛：程序更新页显示 GitHub Release 说明，在应用内下载 `.fpk` 并调用飞牛应用中心覆盖升级。
+- 飞牛：程序更新页显示 GitHub Release 说明，直接拉取程序代码并自动重启；启动失败自动恢复上一版。
 - Android：程序更新页下载 APK、显示进度，并在完成后打开系统安装器。
 
 升级不会主动删除数据，但升级前仍建议导出配置并备份平台数据目录。`.fpk`、`.apk` 和 `.bundle` 用途不同，不能混用。

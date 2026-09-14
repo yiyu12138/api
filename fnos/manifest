@@ -13,4 +13,4 @@ desktop_applaunchname = api-balance.main
 checkport             = false
 ctl_stop              = true
 disable_authorization_path = true
-changelog             = 修复飞牛升级后旧数据权限导致启动失败，保留原密钥与配置
+changelog             = 飞牛应用改为直接更新 GitHub 程序代码，失败时自动恢复上一版

@@ -1,0 +1,46 @@
+#!/bin/bash
+
+RUNTIME_DIR="$DATA_DIR/runtime"
+PREVIOUS_DIR="$DATA_DIR/runtime-previous"
+FAILED_DIR="$DATA_DIR/runtime-failed"
+UPDATE_MARKER="$DATA_DIR/runtime-update-pending"
+STATUS_FILE="$DATA_DIR/update-status.json"
+child=""
+
+stop_child() {
+  if [ -n "$child" ]; then
+    kill -TERM "$child" 2>/dev/null || true
+    wait "$child" 2>/dev/null || true
+  fi
+  exit 0
+}
+trap stop_child TERM INT
+
+while true; do
+  app_dir="$FALLBACK_DIR"
+  if [ -f "$RUNTIME_DIR/package.json" ] && [ -f "$RUNTIME_DIR/server/index.js" ]; then
+    app_dir="$RUNTIME_DIR"
+  fi
+  runuser -u "$APP_USER" -- env DATA_DIR="$DATA_DIR" PORT="$PORT" DEPLOYMENT_MODE=fnos APP_DIR="$app_dir" \
+    "$NODE_BIN" "$app_dir/server/index.js" &
+  child="$!"
+  wait "$child"
+  code="$?"
+  child=""
+  if [ "$code" -eq 75 ]; then
+    sleep 1
+    continue
+  fi
+  if [ -f "$UPDATE_MARKER" ] && [ -d "$PREVIOUS_DIR" ]; then
+    version="$(tr -cd '0-9.' < "$UPDATE_MARKER")"
+    rm -rf "$FAILED_DIR"
+    [ ! -d "$RUNTIME_DIR" ] || mv "$RUNTIME_DIR" "$FAILED_DIR"
+    mv "$PREVIOUS_DIR" "$RUNTIME_DIR"
+    rm -f "$UPDATE_MARKER"
+    printf '{"state":"failed","message":"v%s 启动失败，已自动恢复上一版","targetVersion":"%s","progress":100,"at":%s}\n' \
+      "$version" "$version" "$(date +%s000)" > "$STATUS_FILE"
+    sleep 1
+    continue
+  fi
+  exit "$code"
+done

@@ -765,7 +765,7 @@
     const faqs = [
       ['程序更新一直停在“正在拉取代码”怎么办？', '先等待最多 90 秒，再查看更新状态。若失败，请确认 NAS 能访问 GitHub，并检查代理地址是否能从 API 容器访问。'],
       ['NAS 无法连接 GitHub，怎样本地更新？', '在能联网的设备打开 GitHub Releases，下载与目标版本同名的 .bundle 文件且不要解压；在程序更新页选择该文件。普通 Source code ZIP 不是本地更新包。'],
-      ['飞牛版应该下载哪个文件？', '首次安装下载扩展名为 .fpk 的文件；后续可在程序更新页直接下载安装。.apk 只用于 Android，.bundle 只用于普通 Docker/Git 部署。'],
+      ['飞牛版应该下载哪个文件？', '首次安装下载扩展名为 .fpk 的文件；后续在程序更新页直接拉取代码更新。.apk 只用于 Android，.bundle 只用于普通 Docker/Git 部署。'],
       ['为什么不能填写电脑的 127.0.0.1 代理？', '容器中的 127.0.0.1 指向容器自身。请在代理程序中允许局域网连接，并填写 NAS 或局域网内实际可访问的 IP 与端口。'],
       ['余额显示特别大的数字怎么办？', '通常是接口返回内部额度或无限额度占位值。请选择正确模板，或在自定义接口中填写正确的余额字段与换算除数。'],
       ['换算除数应该填多少？', '计算方式是“显示额度 = 接口原始额度 ÷ 换算除数”。接口直接返回金额时填 1；New API 常见值为 500000。'],
@@ -831,7 +831,7 @@
       + '<section id="docs-update"><p class="docs-kicker">09</p><h2>程序更新</h2><p>页面打开时会检查版本，进入“程序更新”或点击“检查更新”也会立即重新检测。检测结果会同时显示在首页、侧边栏和更新页；发现新版时，更新页列出当前版本到最新版之间的提交明细。</p>'
       + '<ol><li>代理留空表示 NAS 直连；需要代理时填写容器能够访问的 HTTP 或 HTTPS 代理。</li><li>正常连接 GitHub 时点击“从 GitHub 更新”，服务执行 <code>git pull --ff-only origin main</code>。</li><li>GitHub 无法连接时，可填写同步了本项目 <code>main</code> 分支和版本标签的可信 Git 镜像地址，保存后点击“从备用仓库更新”。</li><li>NAS 无法访问任何仓库时，在能联网的手机或电脑打开 GitHub Releases，下载名为 <code>api-balance-vX.Y.Z.bundle</code> 的文件，不要解压；回到更新页点击“选择更新包”。服务会校验项目、版本和 Git 历史，只允许快进到更高版本。</li><li>更新成功后服务退出并由 Docker 重启，页面等待服务恢复后自动刷新。若更新包含 Dockerfile 或依赖变化，请执行 <code>docker compose up -d --build</code>。</li></ol>'
       + '<div class="docs-callout warning"><strong>容器网络</strong><span>容器内的 127.0.0.1 指向容器自身，不是你的电脑。局域网代理应允许 LAN 访问，并填写 NAS 或代理主机的实际 IP 与端口。</span></div></section>'
-      + '<section id="docs-fnos"><p class="docs-kicker">10</p><h2>飞牛 fnOS 应用</h2><p>首次安装使用 GitHub Release 中的 <code>api-balance-vX.Y.Z.fpk</code>。FPK 使用飞牛的 <code>nodejs_v22</code> 运行时直接启动服务，不会创建 Docker 容器。</p><ol><li>安装向导中选择访问端口，默认 19999；已有 Docker 版占用该端口时请选择其他空闲端口。</li><li>从飞牛桌面入口打开，或访问 <code>http://飞牛地址:所选端口</code>。端口也可在系统应用设置中修改。</li><li>程序更新会下载官方 FPK 并尝试调用系统安装；若显示“待覆盖安装”，请保存安装包，在飞牛应用中心选择“手动安装”。部分系统的命令行安装会跳过已安装应用，不能据此判断升级成功。</li><li>同一应用包名覆盖升级会保留配置、密钥和历史。不要先卸载旧版；卸载时选择删除应用数据会清空这些文件。升级前建议导出配置。</li></ol><div class="docs-callout warning"><strong>不要混用安装包</strong><span>FPK 用于飞牛，APK 用于 Android，Bundle 用于普通 Docker/Git 部署。原生版与 Docker 版数据相互独立；面板没有内置登录，不要把访问端口直接暴露到公网。</span></div></section>'
+      + '<section id="docs-fnos"><p class="docs-kicker">10</p><h2>飞牛 fnOS 应用</h2><p>首次安装使用 GitHub Release 中的 <code>api-balance-vX.Y.Z.fpk</code>。FPK 使用飞牛的 <code>nodejs_v22</code> 运行时直接启动服务，不会创建 Docker 容器。</p><ol><li>安装向导中选择访问端口，默认 19999；已有 Docker 版占用该端口时请选择其他空闲端口。</li><li>从飞牛桌面入口打开，或访问 <code>http://飞牛地址:所选端口</code>。端口也可在系统应用设置中修改。</li><li>日常版本在程序更新页直接拉取 GitHub 代码并自动重启，不会重新安装 FPK；新代码启动失败时会自动恢复上一版。</li><li>只有底层启动配置变化时才需在应用中心手动覆盖安装新版 FPK。不要先卸载旧版；卸载时选择删除应用数据会清空配置和历史。</li></ol><div class="docs-callout warning"><strong>不要混用安装包</strong><span>FPK 用于飞牛首次安装，APK 用于 Android，Bundle 用于普通 Docker/Git 部署。原生版与 Docker 版数据相互独立；面板没有内置登录，不要把访问端口直接暴露到公网。</span></div></section>'
       + '<section id="docs-android"><p class="docs-kicker">11</p><h2>Android 独立应用</h2><p>Android 应用内置完整手机页面和查询逻辑，不需要 NAS、Docker 或单独部署服务。站点配置、密钥、余额历史与推送凭据只保存在当前手机。</p><ol><li>首次启动直接进入面板，在“添加站点”中填写地址和密钥即可查询。</li><li>密钥与配置由 Android Keystore 生成的设备密钥加密保存，卸载应用会删除本地数据。</li><li>系统后台任务会继续执行自动余额查询和低余额推送；Android 规定后台周期最短为 15 分钟，省电策略可能延迟执行，打开应用时仍按页面设置刷新。</li><li>导出配置时由系统选择保存位置；导出文件含站点密钥和推送凭据，应按密码文件保管。</li><li>更新页会显示 GitHub Release 的更新内容、安装包大小和实时下载进度。点击“下载 APK 并安装”后，下载完成会自动打开 Android 系统安装器。</li><li>首次更新时按系统提示允许本应用安装未知应用；Android 不允许应用绕过系统确认静默安装。</li></ol><div class="docs-callout warning"><strong>签名校验</strong><span>Android 只允许使用相同签名的新版 APK 覆盖安装。请只从本项目 GitHub Release 下载；覆盖安装会保留本机配置。</span></div></section>'
       + '<section id="docs-security"><p class="docs-kicker">12</p><h2>数据与安全</h2><p>Docker 版使用 <code>APP_SECRET</code> 加密数据卷；飞牛版使用应用数据目录中的随机设备密钥；Android 独立版使用 Android Keystore。所有模式的页面都不会显示完整密钥。</p>'
       + '<p>Docker 面板不提供内置账号登录，只应在可信局域网使用，或通过 NAS 权限、反向代理认证、VPN 和防火墙限制访问。站点、用量和 Webhook URL 会由程序主动请求，只应填写你信任的地址。</p><p>迁移 Docker 数据卷时必须保留原 <code>APP_SECRET</code>。Android 导出文件包含明文站点密钥和推送凭据，用于用户主动迁移，必须按密码文件保管；Android 应用私有数据本身仍保持加密。</p></section>'
@@ -843,7 +843,7 @@
   function renderUpdate() {
     const sid = '__update__';
     const update = DATA.settings.update || {};
-    const labels = { idle: '尚未更新', queued: '等待执行', running: '正在下载', installing: '正在安装', ready: '待覆盖安装', success: '更新完成', failed: '更新失败' };
+    const labels = { idle: '尚未更新', queued: '等待执行', running: '正在更新', installing: '正在安装', success: '更新完成', failed: '更新失败' };
     const proxy = valueOf(sid, 'proxyUrl', DATA.settings.proxy?.url || '', '');
     const mirror = valueOf(sid, 'mirrorUrl', DATA.settings.proxy?.mirrorUrl || '', '');
     const busy = ['queued', 'running', 'installing'].includes(update.state);
@@ -871,12 +871,11 @@
       const latest = versionInfo?.latest || '—';
       html += '<div class="fnos-version-grid"><div><span>当前版本</span><strong>v' + esc(DATA.version) + '</strong></div><b aria-hidden="true">→</b><div><span>最新版本</span><strong>' + (latest === '—' ? latest : 'v' + esc(latest)) + '</strong></div></div>';
       html += '<div class="update-version-summary"><strong>' + esc(versionState) + '</strong>' + (versionInfo?.source ? '<span>检测来源：' + esc(versionInfo.source) + '</span>' : '') + (versionInfo?.error ? '<span>' + esc(versionInfo.error) + '</span>' : '') + '</div>';
-      if (versionInfo?.releaseNotes?.length) html += '<div class="android-release-notes"><div><strong>更新内容</strong><span>v' + esc(versionInfo.latest) + (versionInfo.fpkSize ? ' · ' + esc(fileSize(versionInfo.fpkSize)) : '') + '</span></div><ul>' + versionInfo.releaseNotes.map((item) => '<li>' + esc(item) + '</li>').join('') + '</ul></div>';
-      html += '<div class="update-message">下载官方 FPK 后尝试调用系统安装。部分飞牛版本不支持命令行覆盖升级，需要在应用中心手动安装；不要先卸载旧版，站点配置、密钥和历史数据会保留。</div>';
-      if (busy || update.message) html += '<div class="android-download-state ' + esc(update.state || '') + '" role="status" aria-live="polite"><div><span>' + esc(update.message || '正在准备更新') + '</span><strong>' + (Number.isFinite(Number(update.progress)) ? esc(update.progress) + '%' : '') + '</strong></div><div class="android-progress' + (Number(update.progress) <= 0 && busy ? ' indeterminate' : '') + '" role="progressbar" aria-label="FPK 更新进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + esc(Number(update.progress) || 0) + '"><i style="width:' + esc(Number(update.progress) || 0) + '%"></i></div></div>';
+      if (versionInfo?.releaseNotes?.length) html += '<div class="android-release-notes"><div><strong>更新内容</strong><span>v' + esc(versionInfo.latest) + '</span></div><ul>' + versionInfo.releaseNotes.map((item) => '<li>' + esc(item) + '</li>').join('') + '</ul></div>';
+      html += '<div class="update-message">仅从 GitHub 更新程序代码并自动重启，不会重新安装 FPK，也不会改动站点配置、密钥、历史数据和激活状态。新版本启动失败时会自动恢复上一版。</div>';
+      if (busy || update.message) html += '<div class="android-download-state ' + esc(update.state || '') + '" role="status" aria-live="polite"><div><span>' + esc(update.message || '正在准备更新') + '</span><strong>' + (Number.isFinite(Number(update.progress)) ? esc(update.progress) + '%' : '') + '</strong></div><div class="android-progress' + (Number(update.progress) <= 0 && busy ? ' indeterminate' : '') + '" role="progressbar" aria-label="代码更新进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + esc(Number(update.progress) || 0) + '"><i style="width:' + esc(Number(update.progress) || 0) + '%"></i></div></div>';
       html += '<div class="ops update-actions">';
-      if (update.state === 'ready') html += '<a class="btn primary" href="/api/update/fpk" download>' + icon('download') + ' 保存 v' + esc(update.targetVersion) + ' FPK 安装包</a>';
-      html += '<button type="button" class="btn' + (update.state === 'ready' ? '' : ' primary') + '" data-act="fnos-update"' + (!versionInfo?.updateAvailable || busy ? ' disabled' : '') + '>' + icon(busy ? 'refresh' : 'download') + ' ' + (busy ? '正在更新…' : versionInfo?.updateAvailable ? (update.state === 'ready' ? '重新下载 v' : '下载更新 v') + esc(versionInfo.latest) : '当前已是最新版') + '</button></div></section>';
+      html += '<button type="button" class="btn primary" data-act="fnos-update"' + (!versionInfo?.updateAvailable || busy ? ' disabled' : '') + '>' + icon(busy ? 'refresh' : 'download') + ' ' + (busy ? '正在更新…' : versionInfo?.updateAvailable ? '立即更新到 v' + esc(versionInfo.latest) : '当前已是最新版') + '</button></div></section>';
       return html;
     }
     if (androidVersion) html += '<div class="update-section-title"><strong>服务端程序</strong><span>更新 NAS 或 Docker 中运行的 API Balance</span></div>';
@@ -1426,7 +1425,7 @@
       if (!body.ok) return toast(body.error || '无法开始更新', 'bad');
       DATA.settings.update = body.data;
       renderMainRaw();
-      toast('已开始下载，完成后将核验系统安装结果', 'ok');
+      toast('已开始更新代码，完成后应用会自动重启', 'ok');
       watchUpdate();
       return;
     }

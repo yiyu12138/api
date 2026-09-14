@@ -9,7 +9,6 @@ LOG_FILE="${TRIM_PKGVAR}/api-balance.log"
 PORT="${wizard_port:-19999}"
 APP_USER="${TRIM_USERNAME:-api-balance}"
 APP_GROUP="${TRIM_GROUPNAME:-api-balance}"
-UPDATE_FILE="${TRIM_PKGVAR}/api-balance-update.fpk"
 SUDOERS_FILE="/etc/sudoers.d/api-balance-update"
 
 fail() {
@@ -42,12 +41,9 @@ start_app() {
   bash "$SCRIPT_DIR/prepare-data" "$DATA_DIR" "$APP_USER" "$APP_GROUP" || fail "无法迁移应用数据权限，请保留原数据并检查应用日志。"
   touch "$LOG_FILE"
   chown "$APP_USER:$APP_GROUP" "$DATA_DIR" "$LOG_FILE" || fail "无法设置应用数据目录权限。"
-  if command -v sudo >/dev/null 2>&1 && [ -x /usr/local/bin/appcenter-cli ]; then
-    printf '%s ALL=(root) NOPASSWD: /usr/local/bin/appcenter-cli install-fpk %s\n' "$APP_USER" "$UPDATE_FILE" > "$SUDOERS_FILE"
-    chmod 440 "$SUDOERS_FILE"
-  fi
-  cd "$APP_DIR" || fail "无法进入应用目录。"
-  runuser -u "$APP_USER" -- env DATA_DIR="$DATA_DIR" PORT="$PORT" DEPLOYMENT_MODE=fnos FNOS_UPDATE_FILE="$UPDATE_FILE" "$NODE_BIN" server/index.js >> "$LOG_FILE" 2>&1 &
+  rm -f "$SUDOERS_FILE"
+  env NODE_BIN="$NODE_BIN" FALLBACK_DIR="$APP_DIR" DATA_DIR="$DATA_DIR" PORT="$PORT" APP_USER="$APP_USER" LOG_FILE="$LOG_FILE" \
+    bash "$SCRIPT_DIR/supervisor" >> "$LOG_FILE" 2>&1 &
   echo "$!" > "$PID_FILE"
   sleep 1
   running || fail "API Balance 启动失败，请查看 $LOG_FILE。"

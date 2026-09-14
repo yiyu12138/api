@@ -1,8 +1,5 @@
 'use strict';
 
-const fs = require('node:fs');
-const { pipeline } = require('node:stream/promises');
-
 function compareVersions(a, b) {
   const left = String(a).split('.').map(Number);
   const right = String(b).split('.').map(Number);
@@ -49,14 +46,9 @@ function validatePackageJson(raw, currentVersion) {
   return pkg.version;
 }
 
-function parseFpkRelease(release, currentVersion) {
+function parseRelease(release, currentVersion) {
   const latest = String(release?.tag_name || '').replace(/^v/, '');
   if (!/^\d+\.\d+\.\d+$/.test(latest)) throw new Error('GitHub Release 版本号无效');
-  const asset = (Array.isArray(release.assets) ? release.assets : []).find((item) => item?.name === 'api-balance-v' + latest + '.fpk');
-  if (!asset) throw new Error('最新版本没有提供 FPK 安装包');
-  let url;
-  try { url = new URL(String(asset.browser_download_url || '')); } catch (error) { throw new Error('FPK 下载地址无效'); }
-  if (url.protocol !== 'https:' || url.hostname !== 'github.com') throw new Error('FPK 下载地址不是可信的 GitHub 地址');
   const releaseNotes = String(release.body || '').split(/\r?\n/)
     .map((line) => line.trim().match(/^[-*]\s+(.+)$/)?.[1]).filter(Boolean).slice(0, 20);
   return {
@@ -65,50 +57,7 @@ function parseFpkRelease(release, currentVersion) {
     updateAvailable: compareVersions(latest, currentVersion) > 0,
     source: 'GitHub Release',
     releaseNotes,
-    fpkUrl: url.href,
-    fpkSize: Number(asset.size) || 0,
     releaseUrl: /^https:\/\/github\.com\//.test(String(release.html_url || '')) ? release.html_url : '',
   };
 }
-
-async function downloadReleaseAsset(url, file, options) {
-  const settings = options || {};
-  const maxBytes = Number(settings.maxBytes) || 100 * 1024 * 1024;
-  const response = await (settings.fetch || fetch)(url, {
-    headers: { Accept: 'application/octet-stream', 'User-Agent': settings.userAgent || 'api-balance' },
-    signal: AbortSignal.timeout(Number(settings.timeoutMs) || 90000),
-  });
-  if (!response.ok) throw new Error('安装包下载失败：HTTP ' + response.status);
-  const declared = Number(response.headers.get('content-length') || 0);
-  if (declared > maxBytes) throw new Error('FPK 安装包不能超过 100 MB');
-  if (!response.body) throw new Error('FPK 安装包没有下载内容');
-  let size = 0;
-  try {
-    await pipeline(response.body, async function* (chunks) {
-      for await (const chunk of chunks) {
-        size += chunk.byteLength;
-        if (size > maxBytes) throw new Error('FPK 安装包不能超过 100 MB');
-        if (settings.onProgress) settings.onProgress(size, declared || Number(settings.expectedSize) || 0);
-        yield chunk;
-      }
-    }, fs.createWriteStream(file, { mode: 0o600 }));
-    if (!size) throw new Error('FPK 安装包为空');
-    if (Number(settings.expectedSize) > 0 && size !== Number(settings.expectedSize)) throw new Error('FPK 安装包大小与 Release 记录不一致');
-    return size;
-  } catch (error) {
-    fs.rmSync(file, { force: true });
-    throw error;
-  }
-}
-
-function finishFpkUpdate(currentVersion, update, packageAvailable) {
-  if (/^\d+\.\d+\.\d+$/.test(update.targetVersion || '') && compareVersions(currentVersion, update.targetVersion) >= 0) {
-    return { ...update, state: 'success', message: '已升级到 v' + currentVersion, progress: 100 };
-  }
-  if (update.packageReady && packageAvailable) {
-    return { ...update, state: 'ready', progress: 100, message: 'FPK 已下载，但系统未完成覆盖升级。请保存安装包，在飞牛应用中心选择“手动安装”，不要先卸载旧版。' };
-  }
-  return { ...update, state: 'failed', packageReady: false, message: '更新未完成或安装包不完整，请重新下载' };
-}
-
-module.exports = { compareVersions, validateBundleFilename, selectBundleTarget, validatePackageJson, parseFpkRelease, downloadReleaseAsset, finishFpkUpdate };
+module.exports = { compareVersions, validateBundleFilename, selectBundleTarget, validatePackageJson, parseRelease };

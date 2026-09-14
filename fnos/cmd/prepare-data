@@ -4,7 +4,7 @@ set -eu
 DATA_DIR="$(realpath -e -- "$1")"
 OWNER="$2:$3"
 [ -d "$DATA_DIR" ] && [ "$DATA_DIR" != / ] || exit 1
-FILES=(secret config.json config.json.tmp history.json history.json.tmp install-id install-id.tmp license license.tmp update-status.json api-balance.log api-balance-update.fpk)
+FILES=(secret config.json config.json.tmp history.json history.json.tmp install-id install-id.tmp license license.tmp update-status.json api-balance.log runtime-update-pending)
 
 # Migrate only application-owned files; never follow links into other NAS data.
 for name in "${FILES[@]}"; do
