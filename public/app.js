@@ -22,7 +22,7 @@
   let overviewUsageLoadedRange = null;
   let overviewUsageStation = 'all';
   let overviewUsageRange = 'today';
-  const OVERVIEW_USAGE_CACHE_KEY = 'api-balance-overview-usage-v1';
+  const OVERVIEW_USAGE_CACHE_KEY = 'api-balance-overview-usage-v2';
   let newStep = 1;
   const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
   let themeMode = window.localStorage.getItem('api-balance-theme') || 'system';
@@ -814,7 +814,7 @@
       + '<div class="docs-callout warning"><strong>汇总不是日志</strong><span>周期汇总接口能显示消费、请求、Token 和模型排行，但不包含每次请求的时间与模型，因此“最近请求”会明确显示接口未提供逐条日志。</span></div>'
       + '<h3>字段映射 JSON</h3><p><code>summary</code> 映射根级余额；<code>periods</code> 映射今天、昨天、近 7 天和近 30 天对象；<code>metrics</code> 映射周期统计；<code>model</code> 映射模型排行。<code>costCurrency</code> 填 USD 或 CNY，<code>costDivisor</code> 填接口消费数值换算为金额时的除数。未提供的字段保持未知，不会按 0 汇总。</p>'
       + '<div class="docs-code docs-prompt"><code>{"summary":{"remaining":"remaining","used":"used","total":"total","unit":"unit"},"timezone":"timezone","costCurrency":"USD","costDivisor":1,"periods":{"today":"periods.today","yesterday":"periods.yesterday","last7d":"periods.last7d","last30d":"periods.last30d"},"metrics":{"requests":"requests","successCount":"successCount","failedCount":"failedCount","successRate":"successRate","inputTokens":"promptTokens","outputTokens":"completionTokens","totalTokens":"totalTokens","cost":"cost","models":"topModels"},"model":{"id":"modelId","name":"modelName","requests":"requests","tokens":"totalTokens","cost":"cost","successRate":"successRate"}}</code></div>'
-      + '<h3>Sole 类周期汇总接口示例</h3><p>根据运营商文档填写：用量接口 URL 为 <code>https://soleapi.com/v1/usage</code>，请求方法选 GET，认证方式选 Bearer Token，字段映射使用上面的 JSON。该接口返回 <code>periods</code> 汇总而非逐条日志，所以可以显示今日、近 7 天、近 30 天和模型排行，不能显示最近单次请求。</p>'
+      + '<h3>Sole 类周期汇总接口示例</h3><p>SoleAPI 可留空用量接口和映射，使用内置识别。若手动配置 <code>https://soleapi.com/v1/usage</code>，请求方法选 GET，认证方式选 Bearer Token，使用上面的 JSON 并将 <code>costCurrency</code> 改为 <code>CNY</code>，<code>costDivisor</code> 保持 1。Sole Credits 按人民币计价，不应再乘美元汇率。该接口返回 <code>periods</code> 汇总而非逐条日志，所以可以显示今日、近 7 天、近 30 天和模型排行，不能显示最近单次请求。</p>'
       + '<h3>判断中转站文档能否提供明细</h3><p>把平台文档交给 AI 时，让它确认日志接口是否返回以下信息：请求时间、模型名称、消费金额、输入 Token、输出 Token、缓存读取和缓存写入。时间字段必须能转换为日期；日志还需要分页方式，才能覆盖所选时间范围。</p>'
       + '<div class="docs-table-wrap"><table><thead><tr><th>统计项</th><th>程序可识别的常见字段</th><th>缺失时的结果</th></tr></thead><tbody><tr><td>请求时间</td><td>created_at 或 createdAt</td><td>无法归入日期范围</td></tr><tr><td>模型</td><td>model</td><td>归为“未知模型”</td></tr><tr><td>消费</td><td>cost_usdc、cost_usd、cost、amount</td><td>显示未知</td></tr><tr><td>输入 Token</td><td>input_tokens 或 inputTokens</td><td>显示未知</td></tr><tr><td>输出 Token</td><td>output_tokens 或 outputTokens</td><td>显示未知</td></tr><tr><td>缓存</td><td>cache_read_tokens、cache_write_tokens 或驼峰写法</td><td>显示未知</td></tr></tbody></table></div>'
       + '<p>把平台文档和本页一起发给 AI，要求它输出“用量接口 URL、请求方法、认证方式、请求 JSON、字段映射 JSON”，并逐项用响应示例验证路径。若平台返回分页日志而不是周期汇总，还要让 AI 明确分页参数和下一页规则；当前自定义表单只解析周期汇总，不能伪造单次请求。</p></section>'

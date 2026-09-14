@@ -5,6 +5,28 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 const { fromOpenAI, query, queryUsage, aggregateUsage } = require('./probe');
 
+test('Sole Credits stay in CNY after all period and model costs are displayed', async (t) => {
+  const period = { requests: 12, promptTokens: 545500, completionTokens: 4201, totalTokens: 549701, cost: 0.238003, topModels: [{ modelName: 'gpt-test', cost: 0.191 }] };
+  const response = { periods: { today: period, yesterday: period, last7d: period, last30d: period, missing: { cost: null } } };
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    assert.equal(url, 'https://soleapi.com/v1/usage');
+    return { status: 200, ok: true, text: async () => JSON.stringify(response) };
+  });
+  for (const rate of [6.7156, 7.2]) {
+    const usage = await queryUsage({ baseUrl: 'https://soleapi.com/v1/usage' }, 'test-key', rate);
+    for (const range of ['today', 'yesterday', '7d', '30d']) {
+      const result = aggregateUsage(usage, range);
+      assert.ok(Math.abs(result.today.cost * rate - 0.238003) < 1e-10);
+      assert.ok(Math.abs(result.models[0].cost * rate - 0.191) < 1e-10);
+      assert.equal(result.today.outputTokens, 4201);
+      assert.equal(result.today.requests, 12);
+    }
+    assert.equal(usage.periods.missing.cost, null);
+    assert.equal(usage.summary.periods.today.cost, 0.238003);
+    assert.equal(usage.timezone, 'Asia/Shanghai');
+  }
+});
+
 test('OpenAI 无限额度占位值不作为真实余额', () => {
   const result = fromOpenAI({ hard_limit_usd: 100000000 }, { total_usage: 0 });
   assert.equal(result.balance, null);

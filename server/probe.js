@@ -404,7 +404,14 @@ async function queryUsage(st, token, fxRate) {
       if (r.status === 401 || r.status === 403) throw new Error('Key 无效或无权限（HTTP ' + r.status + '）');
       throw new Error('SoleAPI 用量接口不可用（HTTP ' + r.status + '）');
     }
-    return { source: 'soleapi', detail: true, requestDetail: false, summary: r.json, periods: r.json.periods || {}, timezone: r.json.timezone || 'Asia/Tokyo', logs: [], fetchedAt: Date.now(), complete: true };
+    // Sole Credits are CNY; aggregated usage costs elsewhere are normalized to USD.
+    const rate = Number(fxRate) > 0 ? Number(fxRate) : 7.2;
+    const costUsd = (value) => num(value) === null ? null : num(value) / rate;
+    const periods = Object.fromEntries(Object.entries(r.json.periods || {}).filter(([, p]) => p && typeof p === 'object').map(([key, p]) => [key, {
+      ...p, cost: costUsd(p.cost),
+      topModels: Array.isArray(p.topModels) ? p.topModels.map(m => ({ ...m, cost: costUsd(m.cost) })) : [],
+    }]));
+    return { source: 'soleapi', detail: true, requestDetail: false, summary: r.json, periods, timezone: r.json.timezone || 'Asia/Shanghai', logs: [], fetchedAt: Date.now(), complete: true };
   }
   throw new Error('该站点暂未配置用量统计接口');
 }
