@@ -18,13 +18,15 @@ API Balance 不是 API 中转或计费服务。它只读取用户配置的官方
 | --- | --- |
 | ![电脑端余额与用量面板](docs/images/desktop-dashboard.png) | <img src="docs/images/mobile-dashboard.png" alt="手机端余额与用量面板" width="320"> |
 
-## 安装方式
+## 下载与安装
+
+请从 [GitHub Releases](https://github.com/yiyu12138/api/releases/latest) 下载对应文件。GitHub 自动附带的 `Source code (zip)` 和 `Source code (tar.gz)` 只是源码快照，不是安装包。
 
 | 平台 | 安装包或方式 | 数据位置 | 应用内更新 |
 | --- | --- | --- | --- |
-| Docker / Node.js | 克隆仓库或 Docker Compose | `data/` | GitHub、备用仓库或 `.bundle` |
-| 飞牛 fnOS | `api-balance-vX.Y.Z.fpk` | 飞牛应用数据目录 | 首次安装 FPK，后续应用内拉取代码更新 |
-| Android 8.0+ | `api-balance.apk` | 应用私有目录 | 下载 APK 并打开系统安装器 |
+| Docker / Node.js | 克隆仓库；`.bundle` 仅用于离线更新 | `data/` 或 `DATA_DIR` | GitHub、备用仓库或 `.bundle` |
+| 飞牛 fnOS | `api-balance-vX.Y.Z.fpk` | 飞牛应用数据目录 | `v1.16.5` 起直接拉取代码并自动重启 |
+| Android 8.0+ | `api-balance.apk` | Android 应用私有目录 | 应用内下载 APK 并打开系统安装器 |
 
 ### Docker
 
@@ -52,13 +54,23 @@ curl http://127.0.0.1:19999/api/health
 2. 在飞牛应用中心选择手动安装，并在向导中选择未占用的端口。
 3. 从飞牛桌面打开 API Balance。
 
-FPK 是飞牛原生应用，由系统提供的 `nodejs_v22` 运行时启动，不创建 Docker 容器。首次安装 FPK 后，后续版本可在程序更新页直接拉取 GitHub 代码并自动重启；配置、密钥、历史和激活状态不会被替换。详见[飞牛 fnOS 安装](docs/飞牛fnOS安装.md)。
+FPK 是飞牛原生应用，由系统提供的 `nodejs_v22` 运行时启动，不创建 Docker 容器。`v1.16.4` 或更早版本需要在应用中心手动覆盖安装一次 `v1.16.5`；之后日常版本可在程序更新页直接拉取代码并自动重启。配置、密钥、历史和激活状态不会被替换。详见[飞牛 fnOS 安装](docs/飞牛fnOS安装.md)。
 
 ### Android
 
 从 [Releases](https://github.com/yiyu12138/api/releases/latest) 下载 `api-balance.apk`。应用内置完整手机页面和查询逻辑，不依赖 NAS 或 Docker；首次启动后直接添加站点即可。
 
 覆盖安装会保留本机配置，卸载会删除应用私有数据。正式包使用固定证书签名，更新时仍需按 Android 安全提示确认安装。
+
+## 更新与备份
+
+| 平台 | 日常更新 | 需要手动处理的情况 |
+| --- | --- | --- |
+| Docker / Node.js | 在程序更新页从 GitHub、备用仓库或 `.bundle` 更新 | Dockerfile 或运行环境变化后执行 `docker compose up -d --build` |
+| 飞牛 fnOS | 在程序更新页拉取已发布版本代码；失败自动恢复上一版 | 首次安装、`v1.16.5` 更新方式迁移或底层启动配置变化时，在应用中心覆盖安装 FPK |
+| Android | 应用内下载 APK，完成后确认系统安装 | 必须使用相同签名的 APK；系统不允许应用静默安装 |
+
+更新不会主动删除数据，但卸载应用、删除平台数据目录或更换加密密钥会造成数据或授权丢失。升级前建议先在“通用设置”导出配置，并备份 Docker 或飞牛的数据目录。Android 配置导出不包含安装编号和许可证，只能通过覆盖安装保留原授权。`.fpk`、`.apk` 和 `.bundle` 不能混用。
 
 ## 主要功能
 
@@ -80,6 +92,7 @@ FPK 是飞牛原生应用，由系统提供的 `nodejs_v22` 运行时启动，�
 - 激活不需要账户，也不要求设备持续联网。
 - 激活码使用 RSA-PSS 签名并绑定安装编号，不能复制到其他安装。
 - Docker 和飞牛升级会保留数据目录中的安装编号与许可证；Android 覆盖安装会保留本机授权。
+- 卸载并删除数据、清空应用数据或重装设备后通常会生成新的安装编号，原激活码不能继续使用。Docker 和飞牛迁移时应保留原数据目录；Android 配置导出不迁移授权。
 - 导入配置不能绕过站点上限；已有站点不会因许可证无效而被删除。
 - 推送设置、测试发送和后台定时发送都会校验许可证，免费版导入的推送渠道保持关闭。
 
@@ -139,14 +152,6 @@ npm start
 ```
 
 网页和 Node.js 服务没有第三方运行时依赖，也没有前端构建步骤。Android Studio 可直接打开 `android/`；FPK 构建说明位于[飞牛 fnOS 安装](docs/飞牛fnOS安装.md)。
-
-## 更新与备份
-
-- Docker：程序更新页支持 GitHub、可信备用 Git 仓库和 Release `.bundle`；涉及镜像或依赖变化时仍需执行 `docker compose up -d --build`。
-- 飞牛：程序更新页显示 GitHub Release 说明，直接拉取程序代码并自动重启；启动失败自动恢复上一版。
-- Android：程序更新页下载 APK、显示进度，并在完成后打开系统安装器。
-
-升级不会主动删除数据，但升级前仍建议导出配置并备份平台数据目录。`.fpk`、`.apk` 和 `.bundle` 用途不同，不能混用。
 
 ## License
 

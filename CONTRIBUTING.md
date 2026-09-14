@@ -41,7 +41,7 @@ npm run build:demo
 版本号来自 `package.json`。推送 `vX.Y.Z` 标签后，GitHub Actions 会运行测试并发布：
 
 - `api-balance-vX.Y.Z.bundle`：Docker/Git 部署的离线更新包
-- `api-balance-vX.Y.Z.fpk`：飞牛 fnOS 安装包
+- `api-balance-vX.Y.Z.fpk`：飞牛 fnOS 首次安装和底层启动配置升级包
 - `api-balance.apk`：Android 安装包
 
-正式发布前至少验证数据迁移、凭据不回显、Docker 健康检查、飞牛 FPK 打包源和 Android 签名覆盖安装。
+正式发布前至少验证数据迁移、凭据不回显、Docker 健康检查、飞牛 FPK 打包源、飞牛代码更新与失败回滚，以及 Android 签名覆盖安装。
