@@ -1,0 +1,17 @@
+{
+  "name": "api-balance",
+  "version": "1.15.0",
+  "private": true,
+  "description": "多中转站 API 余额总览面板（零依赖 Node 后端 + 移动端优先前端）",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "build:demo": "node scripts/build-demo.js",
+    "build:fpk": "node scripts/build-fpk.js",
+    "prepare:fpk": "node scripts/build-fpk.js --prepare-only",
+    "test": "node --test server/probe.test.js server/notify.test.js server/security.test.js server/store.test.js server/license.test.js server/update-package.test.js android/standalone.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

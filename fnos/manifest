@@ -1,0 +1,16 @@
+appname               = api-balance
+version               = 0.0.0
+display_name          = API Balance
+desc                  = 多中转站 API 余额与用量监控面板
+platform              = all
+source                = thirdparty
+maintainer            = yiyu12138
+maintainer_url        = https://github.com/yiyu12138/api
+distributor           = yiyu12138
+install_dep_apps      = nodejs_v22
+desktop_uidir         = ui
+desktop_applaunchname = api-balance.main
+checkport             = false
+ctl_stop              = true
+disable_authorization_path = true
+changelog             = 增加免费站点限制与离线激活

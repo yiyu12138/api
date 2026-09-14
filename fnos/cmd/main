@@ -1,0 +1,71 @@
+#!/bin/bash
+
+NODE_BIN="/var/apps/nodejs_v22/target/bin/node"
+APP_DIR="${TRIM_APPDEST}/service"
+DATA_DIR="${TRIM_PKGVAR}"
+PID_FILE="${TRIM_PKGVAR}/api-balance.pid"
+LOG_FILE="${TRIM_PKGVAR}/api-balance.log"
+PORT="${wizard_port:-19999}"
+
+fail() {
+  printf '%s\n' "$1" > "${TRIM_TEMP_LOGFILE:-/dev/stderr}"
+  printf '%s - %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >> "$LOG_FILE"
+  exit 1
+}
+
+valid_port() {
+  case "$PORT" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  [ "$PORT" -ge 1024 ] && [ "$PORT" -le 65535 ]
+}
+
+running() {
+  [ -f "$PID_FILE" ] || return 1
+  pid="$(head -n 1 "$PID_FILE" | tr -d '[:space:]')"
+  [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
+}
+
+start_app() {
+  running && return 0
+  rm -f "$PID_FILE"
+  valid_port || fail "访问端口必须是 1024 到 65535 之间的整数。"
+  [ -x "$NODE_BIN" ] || fail "未找到飞牛 Node.js 22 运行时，请在应用中心安装或修复 nodejs_v22。"
+  [ -f "$APP_DIR/server/index.js" ] || fail "应用文件不完整，请重新安装 API Balance。"
+  mkdir -p "$DATA_DIR"
+  cd "$APP_DIR" || fail "无法进入应用目录。"
+  DATA_DIR="$DATA_DIR" PORT="$PORT" DEPLOYMENT_MODE=fnos "$NODE_BIN" server/index.js >> "$LOG_FILE" 2>&1 &
+  echo "$!" > "$PID_FILE"
+  sleep 1
+  running || fail "API Balance 启动失败，请查看 $LOG_FILE。"
+}
+
+stop_app() {
+  if ! running; then
+    rm -f "$PID_FILE"
+    return 0
+  fi
+  pid="$(head -n 1 "$PID_FILE" | tr -d '[:space:]')"
+  kill -TERM "$pid" 2>/dev/null || true
+  count=0
+  while kill -0 "$pid" 2>/dev/null && [ "$count" -lt 10 ]; do
+    sleep 1
+    count=$((count + 1))
+  done
+  kill -0 "$pid" 2>/dev/null && kill -KILL "$pid" 2>/dev/null || true
+  rm -f "$PID_FILE"
+}
+
+case "$1" in
+  start) start_app ;;
+  stop) stop_app ;;
+  status)
+    running && exit 0
+    rm -f "$PID_FILE"
+    exit 3
+    ;;
+  *)
+    printf '%s\n' "未知操作：$1" > "${TRIM_TEMP_LOGFILE:-/dev/stderr}"
+    exit 1
+    ;;
+esac

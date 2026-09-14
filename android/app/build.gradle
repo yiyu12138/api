@@ -1,0 +1,83 @@
+import groovy.json.JsonSlurper
+
+plugins {
+    id 'com.android.application'
+}
+
+dependencies {
+    implementation 'androidx.work:work-runtime:2.10.0'
+}
+
+def appVersion = new JsonSlurper().parse(file('../../package.json')).version as String
+def versionParts = appVersion.tokenize('.').collect { it as int }
+def standaloneAssets = layout.buildDirectory.dir('generated/standalone-assets')
+
+tasks.register('prepareStandaloneAssets', Sync) {
+    into standaloneAssets
+    from('../../public')
+    from('../../server') {
+        include 'providers.js', 'probe.js'
+    }
+    from('..') {
+        include 'standalone.js'
+    }
+    doLast {
+        def index = standaloneAssets.get().file('index.html').asFile
+        def icons = standaloneAssets.get().file('icons.svg').asFile.getText('UTF-8').replace(
+            '<svg xmlns="http://www.w3.org/2000/svg">',
+            '<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">'
+        )
+        index.text = index.getText('UTF-8').replace('<body>', '<body>' + icons).replace(
+            '<script src="app.js?v=20260915-1"></script>',
+            '<script src="providers.js"></script><script src="probe.js"></script><script src="standalone.js"></script><script src="app.js?v=20260915-1"></script>'
+        )
+        def app = standaloneAssets.get().file('app.js').asFile
+        def favicon = standaloneAssets.get().file('favicon.svg').asFile.bytes.encodeBase64().toString()
+        app.text = app.getText('UTF-8')
+            .replace('href="icons.svg#', 'href="#')
+            .replace('src="favicon.svg"', 'src="data:image/svg+xml;base64,' + favicon + '"')
+    }
+}
+
+android {
+    namespace 'com.avhlune.apibalance'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.avhlune.apibalance'
+        minSdk 26
+        targetSdk 35
+        versionCode versionParts[0] * 10000 + versionParts[1] * 100 + versionParts[2]
+        versionName appVersion
+    }
+
+    signingConfigs {
+        release {
+            def keyFile = System.getenv('ANDROID_KEYSTORE_FILE')
+            if (keyFile) {
+                storeFile file(keyFile)
+                storePassword System.getenv('ANDROID_STORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ANDROID_KEY_PASSWORD')
+                storeType 'PKCS12'
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    sourceSets.main.assets.srcDir(standaloneAssets)
+}
+
+tasks.named('preBuild').configure { dependsOn 'prepareStandaloneAssets' }

@@ -1,0 +1,20 @@
+services:
+  api:
+    build: .
+    image: api:latest
+    container_name: api
+    restart: unless-stopped
+    ports:
+      - "19999:8080"
+    volumes:
+      # 所有配置、密钥、历史记录都在这里，备份这个目录即可
+      - ./data:/data
+      # 挂载 Git 工作区，设置页可直接拉取代码并自动重启
+      - .:/app
+    environment:
+      - TZ=Asia/Shanghai
+      - DATA_DIR=/data
+      - PORT=8080
+      - APP_DIR=/app
+      # 首次部署时由 .env 提供随机密钥；以后请勿更改，否则已存密钥无法解密。
+      - APP_SECRET=${APP_SECRET}

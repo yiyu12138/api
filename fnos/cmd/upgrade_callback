@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# Remove only the container created by API Balance FPK releases before v1.14.0.
+if command -v docker >/dev/null 2>&1 && docker inspect api-balance-fnos >/dev/null 2>&1; then
+  docker rm -f api-balance-fnos >/dev/null 2>&1 || {
+    echo "旧版 API Balance 容器清理失败，请停止 api-balance-fnos 后重试升级。" > "$TRIM_TEMP_LOGFILE"
+    exit 1
+  }
+fi
+exit 0

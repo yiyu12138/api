@@ -1,0 +1,27 @@
+[
+  {
+    "stepTitle": "服务设置",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "API Balance 将作为飞牛原生服务运行，不会创建 Docker 容器。安装前会检查 Node.js 22 运行时，缺失时请先在应用中心安装。"
+      },
+      {
+        "type": "text",
+        "field": "wizard_port",
+        "label": "访问端口",
+        "initValue": "19999",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入访问端口"
+          },
+          {
+            "pattern": "^[0-9]+$",
+            "message": "端口只能填写数字"
+          }
+        ]
+      }
+    ]
+  }
+]

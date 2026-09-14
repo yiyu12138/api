@@ -1,0 +1,25 @@
+#!/bin/bash
+
+PORT="${wizard_port:-19999}"
+NODE_BIN="/var/apps/nodejs_v22/target/bin/node"
+
+if [ ! -x "$NODE_BIN" ]; then
+  echo "未检测到 Node.js 22 运行时。请先在飞牛应用中心安装并启用 nodejs_v22，然后重新安装 API Balance。" > "$TRIM_TEMP_LOGFILE"
+  exit 1
+fi
+
+case "$PORT" in
+  ''|*[!0-9]*)
+    echo "访问端口只能填写数字。" > "$TRIM_TEMP_LOGFILE"
+    exit 1
+    ;;
+esac
+if [ "$PORT" -lt 1024 ] || [ "$PORT" -gt 65535 ]; then
+  echo "访问端口必须在 1024 到 65535 之间。" > "$TRIM_TEMP_LOGFILE"
+  exit 1
+fi
+if command -v ss >/dev/null 2>&1 && ss -ltn 2>/dev/null | awk 'NR > 1 { print $4 }' | grep -Eq ":${PORT}$"; then
+  echo "端口 ${PORT} 已被占用，请返回并选择其他端口。" > "$TRIM_TEMP_LOGFILE"
+  exit 1
+fi
+exit 0
