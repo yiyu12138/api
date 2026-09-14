@@ -999,7 +999,7 @@
         if (body.ok && DATA) {
           DATA.settings.update = body.data;
           renderMainRaw();
-          if (['success', 'failed', 'ready'].includes(body.data.state) || tries > 210) {
+          if (['success', 'failed', 'ready'].includes(body.data.state) || tries > 240) {
             window.clearInterval(updatePollTimer);
             updatePollTimer = null;
             if (body.data.state === 'success') {
@@ -1016,7 +1016,7 @@
           }
         }
       } catch (error) {
-        if (tries > 210) { window.clearInterval(updatePollTimer); updatePollTimer = null; }
+        if (tries > 240) { window.clearInterval(updatePollTimer); updatePollTimer = null; }
       }
     }, 3000);
   }
