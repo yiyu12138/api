@@ -139,6 +139,7 @@ select.field{appearance:none;background-image:linear-gradient(45deg,transparent 
   background:rgba(254,243,242,.92);border:1px solid rgba(240,68,56,.22);color:#b42318;word-break:break-word}
 .ops{display:flex;gap:8px;padding:13px 16px}
 .update-panel .update-actions .btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;text-decoration:none}
+@media(max-width:700px){.update-panel .update-actions .btn{flex-basis:100%}}
 .btn{flex:1;text-align:center;padding:11px;border-radius:13px;font-size:13px;font-weight:600;
   background:rgba(255,255,255,.92);border:1px solid #e4e9f0;color:#344054}
 .btn:active{transform:scale(.985)}
