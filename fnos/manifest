@@ -13,4 +13,4 @@ desktop_applaunchname = api-balance.main
 checkport             = false
 ctl_stop              = true
 disable_authorization_path = true
-changelog             = 增加 10 元完整功能与应用内 FPK 更新
+changelog             = 修复飞牛升级后旧数据权限导致启动失败，保留原密钥与配置

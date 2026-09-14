@@ -1,6 +1,7 @@
 #!/bin/bash
 
 NODE_BIN="/var/apps/nodejs_v22/target/bin/node"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_DIR="${TRIM_APPDEST}/service"
 DATA_DIR="${TRIM_PKGVAR}"
 PID_FILE="${TRIM_PKGVAR}/api-balance.pid"
@@ -38,6 +39,7 @@ start_app() {
   [ -f "$APP_DIR/server/index.js" ] || fail "应用文件不完整，请重新安装 API Balance。"
   command -v runuser >/dev/null 2>&1 || fail "系统缺少 runuser，无法以应用账号启动服务。"
   mkdir -p "$DATA_DIR"
+  bash "$SCRIPT_DIR/prepare-data" "$DATA_DIR" "$APP_USER" "$APP_GROUP" || fail "无法迁移应用数据权限，请保留原数据并检查应用日志。"
   touch "$LOG_FILE"
   chown "$APP_USER:$APP_GROUP" "$DATA_DIR" "$LOG_FILE" || fail "无法设置应用数据目录权限。"
   if command -v sudo >/dev/null 2>&1 && [ -x /usr/local/bin/appcenter-cli ]; then

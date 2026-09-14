@@ -13,6 +13,8 @@ jobs:
         with:
           node-version: 20
       - run: npm test
+      - name: Test fnOS data permission migration
+        run: sudo "$(command -v node)" --test scripts/fnos-permissions.test.js
       - run: node --check public/app.js && node --check server/index.js && node --check server/probe.js
 
   android:
