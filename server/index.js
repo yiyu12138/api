@@ -863,7 +863,9 @@ const server = http.createServer((req, res) => {
 });
 
 const startupUpdate = readUpdateStatus();
-if (['queued', 'running', 'installing'].includes(startupUpdate.state)) {
+if (/^\d+\.\d+\.\d+$/.test(startupUpdate.targetVersion || '') && compareVersions(APP_VERSION, startupUpdate.targetVersion) >= 0) {
+  writeUpdateStatus('success', '当前已是 v' + APP_VERSION, startupUpdate.commit || '', { targetVersion: startupUpdate.targetVersion, progress: 100 });
+} else if (['queued', 'running', 'installing', 'ready'].includes(startupUpdate.state)) {
   writeUpdateStatus('failed', '上次更新未完成，请重新尝试');
 }
 
