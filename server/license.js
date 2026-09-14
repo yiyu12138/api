@@ -10,6 +10,7 @@ const LICENSE_FILE = path.join(DATA_DIR, 'license');
 const PUBLIC_KEY_FILE = process.env.LICENSE_PUBLIC_KEY_FILE || path.join(__dirname, 'license-public.pem');
 const FREE_STATION_LIMIT = 2;
 const CONTACT_EMAIL = 'avhlune@gmail.com';
+const PRICE_CNY = 10;
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -69,7 +70,7 @@ function readCode() {
 function state() {
   const id = installId();
   const code = readCode();
-  if (!code) return { active: false, status: 'free', installId: id, stationLimit: FREE_STATION_LIMIT, contactEmail: CONTACT_EMAIL };
+  if (!code) return { active: false, status: 'free', installId: id, stationLimit: FREE_STATION_LIMIT, contactEmail: CONTACT_EMAIL, priceCny: PRICE_CNY };
   try {
     const payload = verify(code, id);
     return {
@@ -78,12 +79,13 @@ function state() {
       installId: id,
       stationLimit: null,
       contactEmail: CONTACT_EMAIL,
+      priceCny: PRICE_CNY,
       licenseId: String(payload.licenseId),
       issuedAt: Number(payload.issuedAt || 0),
       expiresAt: Number(payload.expiresAt || 0),
     };
   } catch (error) {
-    return { active: false, status: 'invalid', installId: id, stationLimit: FREE_STATION_LIMIT, contactEmail: CONTACT_EMAIL, error: error.message };
+    return { active: false, status: 'invalid', installId: id, stationLimit: FREE_STATION_LIMIT, contactEmail: CONTACT_EMAIL, priceCny: PRICE_CNY, error: error.message };
   }
 }
 
@@ -103,4 +105,11 @@ function assertStationCount(count) {
   }
 }
 
-module.exports = { FREE_STATION_LIMIT, activate, assertStationCount, installId, state, verify };
+function assertPaidFeature(feature) {
+  if (state().active) return;
+  const error = new Error(String(feature || '此功能') + '需支付 ' + PRICE_CNY + ' 元激活完整功能');
+  error.code = 'LICENSE_REQUIRED';
+  throw error;
+}
+
+module.exports = { FREE_STATION_LIMIT, PRICE_CNY, activate, assertPaidFeature, assertStationCount, installId, state, verify };

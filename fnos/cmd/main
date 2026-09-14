@@ -6,6 +6,10 @@ DATA_DIR="${TRIM_PKGVAR}"
 PID_FILE="${TRIM_PKGVAR}/api-balance.pid"
 LOG_FILE="${TRIM_PKGVAR}/api-balance.log"
 PORT="${wizard_port:-19999}"
+APP_USER="${TRIM_USERNAME:-api-balance}"
+APP_GROUP="${TRIM_GROUPNAME:-api-balance}"
+UPDATE_FILE="${TRIM_PKGVAR}/api-balance-update.fpk"
+SUDOERS_FILE="/etc/sudoers.d/api-balance-update"
 
 fail() {
   printf '%s\n' "$1" > "${TRIM_TEMP_LOGFILE:-/dev/stderr}"
@@ -32,9 +36,16 @@ start_app() {
   valid_port || fail "访问端口必须是 1024 到 65535 之间的整数。"
   [ -x "$NODE_BIN" ] || fail "未找到飞牛 Node.js 22 运行时，请在应用中心安装或修复 nodejs_v22。"
   [ -f "$APP_DIR/server/index.js" ] || fail "应用文件不完整，请重新安装 API Balance。"
+  command -v runuser >/dev/null 2>&1 || fail "系统缺少 runuser，无法以应用账号启动服务。"
   mkdir -p "$DATA_DIR"
+  touch "$LOG_FILE"
+  chown "$APP_USER:$APP_GROUP" "$DATA_DIR" "$LOG_FILE" || fail "无法设置应用数据目录权限。"
+  if command -v sudo >/dev/null 2>&1 && [ -x /usr/local/bin/appcenter-cli ]; then
+    printf '%s ALL=(root) NOPASSWD: /usr/local/bin/appcenter-cli install-fpk %s\n' "$APP_USER" "$UPDATE_FILE" > "$SUDOERS_FILE"
+    chmod 440 "$SUDOERS_FILE"
+  fi
   cd "$APP_DIR" || fail "无法进入应用目录。"
-  DATA_DIR="$DATA_DIR" PORT="$PORT" DEPLOYMENT_MODE=fnos "$NODE_BIN" server/index.js >> "$LOG_FILE" 2>&1 &
+  runuser -u "$APP_USER" -- env DATA_DIR="$DATA_DIR" PORT="$PORT" DEPLOYMENT_MODE=fnos FNOS_UPDATE_FILE="$UPDATE_FILE" "$NODE_BIN" server/index.js >> "$LOG_FILE" 2>&1 &
   echo "$!" > "$PID_FILE"
   sleep 1
   running || fail "API Balance 启动失败，请查看 $LOG_FILE。"
@@ -43,6 +54,7 @@ start_app() {
 stop_app() {
   if ! running; then
     rm -f "$PID_FILE"
+    rm -f "$SUDOERS_FILE"
     return 0
   fi
   pid="$(head -n 1 "$PID_FILE" | tr -d '[:space:]')"
@@ -54,6 +66,7 @@ stop_app() {
   done
   kill -0 "$pid" 2>/dev/null && kill -KILL "$pid" 2>/dev/null || true
   rm -f "$PID_FILE"
+  rm -f "$SUDOERS_FILE"
 }
 
 case "$1" in

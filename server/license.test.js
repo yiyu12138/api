@@ -39,6 +39,7 @@ test.after(() => {
 test('free installs are limited and signed licenses unlock the install', () => {
   const installId = license.installId();
   assert.throws(() => license.assertStationCount(3), /免费版最多/);
+  assert.throws(() => license.assertPaidFeature('推送功能'), /10 元/);
   const code = signedCode({ version: 1, plan: 'pro', licenseId: 'ORDER-1', installId, issuedAt: Date.now() }, keys.privateKey);
   assert.equal(license.verify(code, installId, keys.publicKey).licenseId, 'ORDER-1');
   assert.throws(() => license.verify(code, crypto.randomUUID(), keys.publicKey), /不属于当前安装/);
@@ -47,4 +48,5 @@ test('free installs are limited and signed licenses unlock the install', () => {
   assert.throws(() => license.verify(tampered, installId, keys.publicKey));
   assert.equal(license.activate(code).active, true);
   assert.doesNotThrow(() => license.assertStationCount(100));
+  assert.doesNotThrow(() => license.assertPaidFeature('推送功能'));
 });

@@ -75,8 +75,8 @@ function readUpdateStatus() {
   }
 }
 
-function writeUpdateStatus(state, message, commit) {
-  fs.writeFileSync(UPDATE_STATUS_FILE, JSON.stringify({ state, message, commit: commit || '', at: Date.now() }));
+function writeUpdateStatus(state, message, commit, extra) {
+  fs.writeFileSync(UPDATE_STATUS_FILE, JSON.stringify(Object.assign({ state, message, commit: commit || '', at: Date.now() }, extra || {})));
 }
 
 function normalizeProxy(value) {
@@ -193,6 +193,36 @@ async function checkLatestFpk() {
     return { ...updatePackage.parseFpkRelease(await response.json(), APP_VERSION), checkedAt: Date.now() };
   } catch (error) {
     return { current: APP_VERSION, latest: '', updateAvailable: false, error: error.message || '版本检查失败', checkedAt: Date.now() };
+  }
+}
+
+async function runFpkUpdate(info) {
+  const file = process.env.FNOS_UPDATE_FILE || path.join(store.DATA_DIR, 'api-balance-update.fpk');
+  let previousProgress = -1;
+  writeUpdateStatus('running', '正在下载 v' + info.latest + ' FPK', '', { targetVersion: info.latest, progress: 0 });
+  try {
+    await updatePackage.downloadReleaseAsset(info.fpkUrl, file, {
+      expectedSize: info.fpkSize,
+      maxBytes: MAX_UPDATE_BYTES,
+      userAgent: 'api-balance/' + APP_VERSION,
+      onProgress(downloaded, total) {
+        const progress = total > 0 ? Math.min(99, Math.floor(downloaded * 100 / total)) : 0;
+        if (progress >= previousProgress + 5) {
+          previousProgress = progress;
+          writeUpdateStatus('running', '正在下载 v' + info.latest + ' FPK', '', { targetVersion: info.latest, progress });
+        }
+      },
+    });
+    const installer = '/usr/local/bin/appcenter-cli';
+    if (!fs.existsSync(installer)) throw new Error('未找到飞牛应用中心安装命令');
+    writeUpdateStatus('installing', '下载完成，正在调用飞牛应用中心安装 v' + info.latest, '', { targetVersion: info.latest, progress: 100 });
+    const child = execFile('sudo', ['-n', installer, 'install-fpk', file], { timeout: 10 * 60 * 1000 }, (error, stdout, stderr) => {
+      if (error) writeUpdateStatus('failed', String(stderr || stdout || error.message).trim().split(/\r?\n/).slice(-1)[0] || 'FPK 安装失败');
+    });
+    child.unref();
+  } catch (error) {
+    fs.rmSync(file, { force: true });
+    writeUpdateStatus('failed', error.message || 'FPK 更新失败');
   }
 }
 
@@ -365,6 +395,7 @@ function isPushDue(now, configured) {
 }
 
 async function checkThresholds() {
+  if (!license.state().active) return;
   const cfg = store.get();
   const n = store.privateNotify();
   const channels = Object.entries(n.channels || {}).filter(([, channel]) => channel.enabled === true);
@@ -495,10 +526,21 @@ async function handleApi(req, res, url) {
   }
 
   if (p === '/api/update' && req.method === 'POST') {
-    if (DEPLOYMENT_MODE === 'fnos') return sendJson(res, 409, { ok: false, error: '飞牛版请通过应用中心或新版 FPK 升级' });
     const current = readUpdateStatus();
-    if (current.state === 'queued' || current.state === 'running') {
+    if (['queued', 'running', 'installing'].includes(current.state)) {
       return sendJson(res, 409, { ok: false, error: '更新正在进行中', data: current });
+    }
+    if (DEPLOYMENT_MODE === 'fnos') {
+      const latest = await checkLatestFpk();
+      if (latest.error) return sendJson(res, 502, { ok: false, error: latest.error });
+      if (!latest.updateAvailable) return sendJson(res, 409, { ok: false, error: '当前已是最新版本' });
+      if (['queued', 'running', 'installing'].includes(readUpdateStatus().state)) {
+        return sendJson(res, 409, { ok: false, error: '更新正在进行中' });
+      }
+      writeUpdateStatus('queued', '等待下载 FPK', '', { targetVersion: latest.latest, progress: 0 });
+      sendJson(res, 202, { ok: true, data: readUpdateStatus() });
+      setImmediate(() => runFpkUpdate(latest));
+      return;
     }
     try {
       const body = await readBody(req);
@@ -674,6 +716,8 @@ async function handleApi(req, res, url) {
       }
     }
     if (body.notify !== undefined) {
+      try { license.assertPaidFeature('推送功能'); }
+      catch (error) { return sendJson(res, 403, { ok: false, code: error.code, error: error.message }); }
       try { setNotifySettings(cfg, body.notify); }
       catch (error) { return sendJson(res, 400, { ok: false, error: error.message }); }
     }
@@ -693,6 +737,8 @@ async function handleApi(req, res, url) {
   }
 
   if (p === '/api/notify/test' && req.method === 'POST') {
+    try { license.assertPaidFeature('推送功能'); }
+    catch (error) { return sendJson(res, 403, { ok: false, code: error.code, error: error.message }); }
     const body = await readBody(req);
     const type = String(body.type || 'bark');
     if (!store.NOTIFY_FIELDS[type]) return sendJson(res, 400, { ok: false, error: '不支持的推送渠道' });
@@ -747,6 +793,7 @@ async function handleApi(req, res, url) {
     if (incoming.threshold) cfg.threshold = Object.assign({}, cfg.threshold, incoming.threshold);
     if (incoming.notify) {
       cfg.notify = store.normalizeNotify(incoming.notify);
+      if (!license.state().active) Object.values(cfg.notify.channels).forEach((channel) => { channel.enabled = false; });
     }
     if (incoming.refreshMinutes !== undefined && Number.isFinite(Number(incoming.refreshMinutes))) cfg.refreshMinutes = Math.max(0, Number(incoming.refreshMinutes));
     store.save();
@@ -811,7 +858,10 @@ const server = http.createServer((req, res) => {
   serveStatic(req, res, url);
 });
 
-if (['queued', 'running'].includes(readUpdateStatus().state)) {
+const startupUpdate = readUpdateStatus();
+if (startupUpdate.state === 'installing' && startupUpdate.targetVersion === APP_VERSION) {
+  writeUpdateStatus('success', '已升级到 v' + APP_VERSION, '', { targetVersion: APP_VERSION, progress: 100 });
+} else if (['queued', 'running', 'installing'].includes(startupUpdate.state)) {
   writeUpdateStatus('failed', '上次更新未完成，请重新尝试');
 }
 

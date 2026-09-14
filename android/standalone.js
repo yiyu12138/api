@@ -177,6 +177,7 @@
       installId: config.installId,
       stationLimit: active ? null : FREE_STATION_LIMIT,
       contactEmail: CONTACT_EMAIL,
+      priceCny: 10,
     };
     return state;
   }
@@ -306,6 +307,7 @@
   }
 
   async function checkThresholds() {
+    if (!licenseState().active) return;
     const enabled = Object.entries(config.notify.channels).filter(([, channel]) => channel.enabled === true);
     if (!enabled.length) return;
     const now = new Date();
@@ -448,6 +450,7 @@
       return { ok: true, data: buildState() };
     }
     if (url.pathname === '/api/settings' && method === 'POST') {
+      if (body.notify && !licenseState().active) return { ok: false, code: 'LICENSE_REQUIRED', error: '推送功能需支付 10 元激活完整功能' };
       if (body.refreshMinutes !== undefined) config.refreshMinutes = Math.max(0, Math.min(1440, Math.floor(Number(body.refreshMinutes) || 0)));
       if (body.timeoutMs !== undefined) config.timeoutMs = Math.max(1000, Math.min(60000, Number(body.timeoutMs) || 12000));
       if (body.thresholdDefaultUsd !== undefined) config.threshold.defaultUsd = body.thresholdDefaultUsd === '' || body.thresholdDefaultUsd === null ? null : Number(body.thresholdDefaultUsd);
@@ -461,6 +464,7 @@
       return { ok: true, data: buildState() };
     }
     if (url.pathname === '/api/notify/test' && method === 'POST') {
+      if (!licenseState().active) return { ok: false, code: 'LICENSE_REQUIRED', error: '推送功能需支付 10 元激活完整功能' };
       try {
         await sendNotification(String(body.type || 'bark'), '✅ 测试推送', 'API Balance 安卓独立版已接通');
         return { ok: true, channel: body.type };
@@ -479,7 +483,10 @@
       config.stations = body.replace === true ? imported : config.stations.concat(imported);
       if (incoming.fx) config.fx = Object.assign(config.fx, incoming.fx);
       if (incoming.threshold) config.threshold = Object.assign(config.threshold, incoming.threshold);
-      if (incoming.notify) config.notify = mergeConfig({ notify: incoming.notify }).notify;
+      if (incoming.notify) {
+        config.notify = mergeConfig({ notify: incoming.notify }).notify;
+        if (!licenseState().active) Object.values(config.notify.channels).forEach((channel) => { channel.enabled = false; });
+      }
       if (Number.isFinite(Number(incoming.refreshMinutes))) config.refreshMinutes = Math.max(0, Number(incoming.refreshMinutes));
       saveConfig();
       return { ok: true, data: buildState() };

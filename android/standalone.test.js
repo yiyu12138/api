@@ -75,6 +75,11 @@ test('Android 更新检查返回可读的 Release 更新说明', async () => {
 
 test('Android 免费版限制两个站点，激活后解除限制', async () => {
   const app = createApp('', {}, () => true);
+  const lockedNotify = await app.window.AndroidStandalone.request('/api/settings', {
+    method: 'POST', body: JSON.stringify({ notify: { channels: { bark: { enabled: true, url: 'https://api.day.app/test' } } } }),
+  });
+  assert.equal(lockedNotify.code, 'LICENSE_REQUIRED');
+  assert.match(lockedNotify.error, /10 元/);
   for (const name of ['A', 'B']) {
     await app.window.AndroidStandalone.request('/api/station', {
       method: 'POST', body: JSON.stringify({ station: { name, baseUrl: 'https://example.com', token: 'secret' } }),
@@ -89,6 +94,10 @@ test('Android 免费版限制两个站点，激活后解除限制', async () => 
     method: 'POST', body: JSON.stringify({ code: payload + '.signature' }),
   });
   assert.equal(activated.data.settings.license.active, true);
+  const unlockedNotify = await app.window.AndroidStandalone.request('/api/settings', {
+    method: 'POST', body: JSON.stringify({ notify: { channels: { bark: { enabled: true, url: 'https://api.day.app/test' } } } }),
+  });
+  assert.equal(unlockedNotify.ok, true);
   const added = await app.window.AndroidStandalone.request('/api/station', {
     method: 'POST', body: JSON.stringify({ station: { name: 'C', baseUrl: 'https://example.com', token: 'secret' } }),
   });

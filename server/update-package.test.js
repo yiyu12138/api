@@ -1,6 +1,9 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const updatePackage = require('./update-package');
 
 test('selects main or newest version tag from a bundle', () => {
@@ -28,4 +31,20 @@ test('reads the matching FPK from a GitHub release', () => {
   assert.equal(result.updateAvailable, true);
   assert.deepEqual(result.releaseNotes, ['保留配置升级', '显示版本说明']);
   assert.equal(result.fpkSize, 1234);
+  assert.throws(() => updatePackage.parseFpkRelease({ tag_name: 'v1.15.0', assets: [{ name: 'api-balance-v1.15.0.fpk', browser_download_url: 'https://example.com/file.fpk' }] }, '1.14.0'), /可信/);
+});
+
+test('downloads a release asset with size validation', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'api-balance-fpk-'));
+  const file = path.join(dir, 'update.fpk');
+  try {
+    const fakeFetch = async () => new Response(Buffer.from('fpk'), { status: 200, headers: { 'content-length': '3' } });
+    assert.equal(await updatePackage.downloadReleaseAsset('https://github.com/file.fpk', file, { fetch: fakeFetch, expectedSize: 3 }), 3);
+    assert.equal(fs.readFileSync(file, 'utf8'), 'fpk');
+    await assert.rejects(() => updatePackage.downloadReleaseAsset('https://github.com/file.fpk', file, { fetch: fakeFetch, expectedSize: 4 }), /大小/);
+    assert.equal(fs.existsSync(file), false);
+    await assert.rejects(() => updatePackage.downloadReleaseAsset('https://github.com/file.fpk', path.join(dir, 'missing', 'update.fpk'), { fetch: fakeFetch }), /ENOENT/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -33,7 +33,7 @@
     webhook: { enabled: false, urlConfigured: false, urlMask: '' },
   };
   const state = {
-    version: '1.15.0', stations,
+    version: '1.16.0', stations,
     summary: { totalUsd: stations.reduce((sum, item) => sum + item.last.balanceUsd, 0), normal: 1, low: 1, failed: 0, unknown: 0, count: 2 },
     settings: {
       refreshMinutes: 30, timeoutMs: 12000, thresholdDefaultUsd: 10,

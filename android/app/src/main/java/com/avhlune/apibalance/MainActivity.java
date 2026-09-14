@@ -118,6 +118,10 @@ public class MainActivity extends Activity {
     }
 
     private boolean verifyLicense(String code, String installId) {
+        return verifyLicenseCode(code, installId);
+    }
+
+    static boolean verifyLicenseCode(String code, String installId) {
         try {
             String[] parts = code == null ? new String[0] : code.trim().split("\\.", -1);
             if (parts.length != 2 || parts[0].isEmpty() || parts[1].isEmpty()) return false;

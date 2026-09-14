@@ -40,6 +40,7 @@
   let updateMethod = 'github';
   let localUpdateFile = null;
   let feedbackOpen = false;
+  let purchaseModal = '';
   let modalReturnAction = '';
   let versionInfo = null;
   let versionChecking = false;
@@ -691,18 +692,18 @@
   function renderLicense() {
     const license = DATA.settings?.license;
     if (!license) return '';
-    const email = license.contactEmail || 'avhlune@gmail.com';
+    const price = Number(license.priceCny) || 10;
     let html = '<section class="panel license-panel' + (license.active ? ' active' : '') + '" id="license-panel">'
       + '<div class="license-head"><span class="license-icon">' + icon('key') + '</span><span><strong>' + (license.active ? '完整功能已激活' : '解锁完整功能') + '</strong>'
-      + '<small>' + (license.active ? '站点数量不受免费版限制' : '免费版最多添加 ' + esc(license.stationLimit || 2) + ' 个站点') + '</small></span>'
+      + '<small>' + (license.active ? '不限站点，并已解锁推送通知' : '免费版最多 ' + esc(license.stationLimit || 2) + ' 个站点；' + esc(price) + ' 元解锁不限站点和推送') + '</small></span>'
       + '<b>' + (license.active ? '已激活' : '免费版') + '</b></div>';
     if (license.active) {
       html += '<div class="license-meta"><span>许可证编号</span><code>' + esc(license.licenseId || '已验证') + '</code></div>';
     } else {
-      const subject = encodeURIComponent('API Balance 完整版购买');
-      const body = encodeURIComponent('你好，我需要购买 API Balance 完整版。\n\n安装编号：' + license.installId + '\n');
       html += '<div class="license-meta"><span>安装编号</span><code>' + esc(license.installId) + '</code><button type="button" data-act="copy-install-id" title="复制安装编号">' + icon('copy') + '<span>复制</span></button></div>'
-        + '<div class="license-actions"><a class="btn primary" href="mailto:' + esc(email) + '?subject=' + subject + '&body=' + body + '">联系购买</a><span>购买后会通过邮箱收到与本机绑定的激活码。</span></div>'
+        + '<div class="license-price"><strong>一次性 ' + esc(price) + ' 元</strong><span>付款后通过邮箱领取与当前安装绑定的激活码。</span></div>'
+        + renderPaymentButtons()
+        + '<small class="license-payment-note">发送付款截图及转账单号，24 小时内会通过邮箱回复激活码。</small>'
         + '<div class="license-activate"><input class="field mono" type="text" data-sid="__license__" data-field="code" autocomplete="off" placeholder="粘贴激活码"><button type="button" class="btn" data-act="activate-license">激活</button></div>';
       if (license.status === 'invalid' && license.error) html += '<div class="badnote">当前许可证无效：' + esc(license.error) + '</div>';
     }
@@ -729,6 +730,10 @@
   }
 
   function renderNotifySettings() {
+    if (!DATA.settings?.license?.active) {
+      return '<section class="panel notify-paywall"><span class="license-icon">' + icon('key') + '</span><div><h2>推送通知需付费解锁</h2><p>支付 10 元激活完整功能后，可使用全部推送渠道，同时解除 2 个站点的数量限制。</p></div>'
+        + renderPaymentButtons() + '<small>发送付款截图及转账单号，24 小时内会通过邮箱回复激活码。</small></section>';
+    }
     const sid = '__notify__';
     const savedTime = DATA.settings.notify?.pushTime || '09:00';
     let html = '<section class="panel notify-rule"><div class="phead"><span class="n">低余额通知规则</span></div>';
@@ -756,7 +761,7 @@
     const faqs = [
       ['程序更新一直停在“正在拉取代码”怎么办？', '先等待最多 90 秒，再查看更新状态。若失败，请确认 NAS 能访问 GitHub，并检查代理地址是否能从 API 容器访问。'],
       ['NAS 无法连接 GitHub，怎样本地更新？', '在能联网的设备打开 GitHub Releases，下载与目标版本同名的 .bundle 文件且不要解压；在程序更新页选择该文件。普通 Source code ZIP 不是本地更新包。'],
-      ['飞牛版应该下载哪个文件？', '下载扩展名为 .fpk 的文件并在飞牛应用中心手动安装。.apk 只用于 Android，.bundle 只用于普通 Docker/Git 部署。'],
+      ['飞牛版应该下载哪个文件？', '首次安装下载扩展名为 .fpk 的文件；后续可在程序更新页直接下载安装。.apk 只用于 Android，.bundle 只用于普通 Docker/Git 部署。'],
       ['为什么不能填写电脑的 127.0.0.1 代理？', '容器中的 127.0.0.1 指向容器自身。请在代理程序中允许局域网连接，并填写 NAS 或局域网内实际可访问的 IP 与端口。'],
       ['余额显示特别大的数字怎么办？', '通常是接口返回内部额度或无限额度占位值。请选择正确模板，或在自定义接口中填写正确的余额字段与换算除数。'],
       ['换算除数应该填多少？', '计算方式是“显示额度 = 接口原始额度 ÷ 换算除数”。接口直接返回金额时填 1；New API 常见值为 500000。'],
@@ -814,7 +819,7 @@
       + '<div class="docs-table-wrap"><table><thead><tr><th>统计项</th><th>程序可识别的常见字段</th><th>缺失时的结果</th></tr></thead><tbody><tr><td>请求时间</td><td>created_at 或 createdAt</td><td>无法归入日期范围</td></tr><tr><td>模型</td><td>model</td><td>归为“未知模型”</td></tr><tr><td>消费</td><td>cost_usdc、cost_usd、cost、amount</td><td>显示未知</td></tr><tr><td>输入 Token</td><td>input_tokens 或 inputTokens</td><td>显示未知</td></tr><tr><td>输出 Token</td><td>output_tokens 或 outputTokens</td><td>显示未知</td></tr><tr><td>缓存</td><td>cache_read_tokens、cache_write_tokens 或驼峰写法</td><td>显示未知</td></tr></tbody></table></div>'
       + '<p>把平台文档和本页一起发给 AI，要求它输出“用量接口 URL、请求方法、认证方式、请求 JSON、字段映射 JSON”，并逐项用响应示例验证路径。若平台返回分页日志而不是周期汇总，还要让 AI 明确分页参数和下一页规则；当前自定义表单只解析周期汇总，不能伪造单次请求。</p></section>'
       + '<section id="docs-general"><p class="docs-kicker">06</p><h2>通用设置</h2><div class="docs-table-wrap"><table><thead><tr><th>设置</th><th>说明</th></tr></thead><tbody><tr><td>刷新间隔</td><td>定时刷新全部站点；设为 0 表示关闭自动刷新。</td></tr><tr><td>请求超时</td><td>单个站点等待时间，范围 1 至 60 秒。</td></tr><tr><td>美元汇率</td><td>自动获取 USD/CNY，失败时沿用上次结果；也可切换手动填写。</td></tr><tr><td>低余额阈值</td><td>新站点默认告警值，单个站点仍可独立修改。</td></tr><tr><td>外观</td><td>侧边栏底部可选跟随系统、亮色或暗色；跟随系统会在设备主题改变时立即切换。</td></tr><tr><td>导入/导出</td><td>迁移设置与站点配置；导出文件应按密钥文件妥善保管。</td></tr></tbody></table></div></section>'
-      + '<section id="docs-notify"><p class="docs-kicker">07</p><h2>推送设置</h2><p>推送设置是独立的低余额通知页面。所有启用渠道共享每日推送时间；站点余额低于自身阈值或默认阈值时，系统向每个启用渠道发送一次，同一站点当天不重复提醒。</p>'
+      + '<section id="docs-notify"><p class="docs-kicker">07</p><h2>推送设置</h2><p>推送属于一次性 10 元完整功能，激活后可使用。所有启用渠道共享每日推送时间；站点余额低于自身阈值或默认阈值时，系统向每个启用渠道发送一次，同一站点当天不重复提醒。</p>'
       + '<div class="docs-table-wrap"><table><thead><tr><th>渠道</th><th>需要填写</th><th>获取位置或请求格式</th></tr></thead><tbody><tr><td>Bark</td><td>完整推送地址</td><td>Bark App 提供的 https://api.day.app/你的Key</td></tr><tr><td>Server酱</td><td>SendKey</td><td>Server酱后台的 SendKey，只填 Key</td></tr><tr><td>PushPlus</td><td>Token</td><td>PushPlus“发送消息”页面中的用户 Token</td></tr><tr><td>Telegram</td><td>Bot Token、Chat ID</td><td>BotFather 创建机器人取得 Token；Chat ID 填接收者、群组或频道 ID</td></tr><tr><td>通用 Webhook</td><td>完整 URL</td><td>POST JSON：title、body、source、at</td></tr></tbody></table></div>'
       + '<ol><li>填写渠道凭据并打开对应开关。</li><li>先保存设置，再点击该渠道的测试按钮确认可达。</li><li>到达设定时间后，系统检查最近保存的余额；同一低余额站点当天只提醒一次。自动刷新设为 0 时仍会检查，但余额可能是上次结果。</li></ol><div class="docs-callout"><strong>凭据安全</strong><span>推送地址、Token、SendKey 和 Chat ID 会使用 APP_SECRET 加密保存在 data/config.json 中；网页只显示掩码，不返回明文。</span></div></section>'
       + '<section id="docs-http"><p class="docs-kicker">08</p><h2>HTTP API</h2><p>本章描述 API Balance 自身提供给网页和自动化工具调用的接口，不是中转站计费接口。所有响应均为 JSON，成功结构为 <code>{"ok":true,"data":...}</code>，失败结构为 <code>{"ok":false,"error":"原因"}</code>。</p>'
@@ -822,7 +827,7 @@
       + '<section id="docs-update"><p class="docs-kicker">09</p><h2>程序更新</h2><p>页面打开时会检查版本，进入“程序更新”或点击“检查更新”也会立即重新检测。检测结果会同时显示在首页、侧边栏和更新页；发现新版时，更新页列出当前版本到最新版之间的提交明细。</p>'
       + '<ol><li>代理留空表示 NAS 直连；需要代理时填写容器能够访问的 HTTP 或 HTTPS 代理。</li><li>正常连接 GitHub 时点击“从 GitHub 更新”，服务执行 <code>git pull --ff-only origin main</code>。</li><li>GitHub 无法连接时，可填写同步了本项目 <code>main</code> 分支和版本标签的可信 Git 镜像地址，保存后点击“从备用仓库更新”。</li><li>NAS 无法访问任何仓库时，在能联网的手机或电脑打开 GitHub Releases，下载名为 <code>api-balance-vX.Y.Z.bundle</code> 的文件，不要解压；回到更新页点击“选择更新包”。服务会校验项目、版本和 Git 历史，只允许快进到更高版本。</li><li>更新成功后服务退出并由 Docker 重启，页面等待服务恢复后自动刷新。若更新包含 Dockerfile 或依赖变化，请执行 <code>docker compose up -d --build</code>。</li></ol>'
       + '<div class="docs-callout warning"><strong>容器网络</strong><span>容器内的 127.0.0.1 指向容器自身，不是你的电脑。局域网代理应允许 LAN 访问，并填写 NAS 或代理主机的实际 IP 与端口。</span></div></section>'
-      + '<section id="docs-fnos"><p class="docs-kicker">10</p><h2>飞牛 fnOS 应用</h2><p>从程序更新页直接下载 GitHub Release 中的 <code>api-balance-vX.Y.Z.fpk</code>，再在飞牛应用中心选择手动安装。FPK 使用飞牛的 <code>nodejs_v22</code> 运行时直接启动服务，不会创建 Docker 容器。</p><ol><li>安装向导中选择访问端口，默认 19999；已有 Docker 版占用该端口时请选择其他空闲端口。</li><li>安装完成后从飞牛桌面入口打开，或访问 <code>http://飞牛地址:所选端口</code>。端口也可在系统应用设置中修改，保存后服务会自动重启。</li><li>使用同一应用包名覆盖升级时，配置、加密密钥、日志和历史继续保存在飞牛分配的应用数据目录。</li><li>不要先卸载旧版；卸载时选择删除应用数据会清空这些文件。升级或卸载前建议先在通用设置导出配置。</li><li>飞牛版不能安装 APK 或 Bundle；系统不允许网页静默安装 FPK，下载后仍需在应用中心确认升级。</li></ol><div class="docs-callout warning"><strong>不要混用安装包</strong><span>FPK 用于飞牛，APK 用于 Android，Bundle 用于普通 Docker/Git 部署。原生版与 Docker 版数据相互独立；面板没有内置登录，不要把访问端口直接暴露到公网。</span></div></section>'
+      + '<section id="docs-fnos"><p class="docs-kicker">10</p><h2>飞牛 fnOS 应用</h2><p>首次安装使用 GitHub Release 中的 <code>api-balance-vX.Y.Z.fpk</code>；后续可在程序更新页查看说明并直接下载安装。FPK 使用飞牛的 <code>nodejs_v22</code> 运行时直接启动服务，不会创建 Docker 容器。</p><ol><li>安装向导中选择访问端口，默认 19999；已有 Docker 版占用该端口时请选择其他空闲端口。</li><li>安装完成后从飞牛桌面入口打开，或访问 <code>http://飞牛地址:所选端口</code>。端口也可在系统应用设置中修改，保存后服务会自动重启。</li><li>使用同一应用包名覆盖升级时，配置、加密密钥、日志和历史继续保存在飞牛分配的应用数据目录。</li><li>不要先卸载旧版；卸载时选择删除应用数据会清空这些文件。升级或卸载前建议先在通用设置导出配置。</li><li>应用内更新只接受官方 Release 中匹配版本的 FPK，并调用飞牛应用中心覆盖安装。</li></ol><div class="docs-callout warning"><strong>不要混用安装包</strong><span>FPK 用于飞牛，APK 用于 Android，Bundle 用于普通 Docker/Git 部署。原生版与 Docker 版数据相互独立；面板没有内置登录，不要把访问端口直接暴露到公网。</span></div></section>'
       + '<section id="docs-android"><p class="docs-kicker">11</p><h2>Android 独立应用</h2><p>Android 应用内置完整手机页面和查询逻辑，不需要 NAS、Docker 或单独部署服务。站点配置、密钥、余额历史与推送凭据只保存在当前手机。</p><ol><li>首次启动直接进入面板，在“添加站点”中填写地址和密钥即可查询。</li><li>密钥与配置由 Android Keystore 生成的设备密钥加密保存，卸载应用会删除本地数据。</li><li>系统后台任务会继续执行自动余额查询和低余额推送；Android 规定后台周期最短为 15 分钟，省电策略可能延迟执行，打开应用时仍按页面设置刷新。</li><li>导出配置时由系统选择保存位置；导出文件含站点密钥和推送凭据，应按密码文件保管。</li><li>更新页会显示 GitHub Release 的更新内容、安装包大小和实时下载进度。点击“下载 APK 并安装”后，下载完成会自动打开 Android 系统安装器。</li><li>首次更新时按系统提示允许本应用安装未知应用；Android 不允许应用绕过系统确认静默安装。</li></ol><div class="docs-callout warning"><strong>签名校验</strong><span>Android 只允许使用相同签名的新版 APK 覆盖安装。请只从本项目 GitHub Release 下载；覆盖安装会保留本机配置。</span></div></section>'
       + '<section id="docs-security"><p class="docs-kicker">12</p><h2>数据与安全</h2><p>Docker 版使用 <code>APP_SECRET</code> 加密数据卷；飞牛版使用应用数据目录中的随机设备密钥；Android 独立版使用 Android Keystore。所有模式的页面都不会显示完整密钥。</p>'
       + '<p>Docker 面板不提供内置账号登录，只应在可信局域网使用，或通过 NAS 权限、反向代理认证、VPN 和防火墙限制访问。站点、用量和 Webhook URL 会由程序主动请求，只应填写你信任的地址。</p><p>迁移 Docker 数据卷时必须保留原 <code>APP_SECRET</code>。Android 导出文件包含明文站点密钥和推送凭据，用于用户主动迁移，必须按密码文件保管；Android 应用私有数据本身仍保持加密。</p></section>'
@@ -834,15 +839,15 @@
   function renderUpdate() {
     const sid = '__update__';
     const update = DATA.settings.update || {};
-    const labels = { idle: '尚未更新', queued: '等待执行', running: '正在更新', success: '更新完成', failed: '更新失败' };
+    const labels = { idle: '尚未更新', queued: '等待执行', running: '正在下载', installing: '正在安装', success: '更新完成', failed: '更新失败' };
     const proxy = valueOf(sid, 'proxyUrl', DATA.settings.proxy?.url || '', '');
     const mirror = valueOf(sid, 'mirrorUrl', DATA.settings.proxy?.mirrorUrl || '', '');
-    const busy = update.state === 'queued' || update.state === 'running';
+    const busy = ['queued', 'running', 'installing'].includes(update.state);
     const androidVersion = androidValue('getVersionName');
     const androidServer = androidStandalone ? '配置与查询数据保存在本机' : androidValue('getServerUrl');
     const downloadBusy = ['queued', 'running', 'paused'].includes(androidDownload?.state);
     const downloadProgress = Number.isFinite(Number(androidDownload?.progress)) ? Math.max(-1, Math.min(100, Number(androidDownload.progress))) : -1;
-    const installLabel = downloadBusy ? (downloadProgress >= 0 ? '正在下载 ' + downloadProgress + '%' : '准备下载…') : '下载 APK 并安装';
+    const installLabel = downloadBusy ? (downloadProgress >= 0 ? '正在下载 ' + downloadProgress + '%' : '准备下载…') : '立即更新';
     const versionState = versionChecking ? '正在检查新版本…' : versionInfo?.error ? '版本检查失败' : versionInfo?.updateAvailable ? '发现 v' + versionInfo.latest : versionInfo ? '已是最新 v' + versionInfo.current : '尚未检查版本';
     let html = '<section class="panel update-panel"><div class="phead"><span class="n">程序更新</span><span class="update-status ' + esc(update.state || 'idle') + '">' + esc(labels[update.state] || '尚未更新') + '</span><button type="button" class="btn update-check" data-act="check-update"' + (versionChecking ? ' disabled' : '') + '>' + icon('refresh') + ' 检查更新</button></div>';
     if (androidVersion) html += '<div class="android-update-card' + (androidStandalone ? ' standalone' : '') + '"><div><strong>' + (androidStandalone ? 'Android 独立版' : 'Android 应用') + '</strong><span class="android-version">v' + esc(androidVersion) + '</span><small>' + esc(androidServer) + '</small></div><div>' + (androidStandalone ? '' : '<button type="button" class="btn" data-act="android-server">修改服务器</button>') + '<button type="button" class="btn primary android-install" data-act="android-update"' + (downloadBusy ? ' disabled' : '') + '>' + icon(downloadBusy ? 'refresh' : 'download') + '<span>' + esc(installLabel) + '</span></button></div><p>安装包来自本项目 GitHub Release；下载完成后会打开 Android 系统安装器，首次使用需允许本应用安装更新。</p></div>';
@@ -862,8 +867,9 @@
       html += '<div class="fnos-version-grid"><div><span>当前版本</span><strong>v' + esc(DATA.version) + '</strong></div><b aria-hidden="true">→</b><div><span>最新版本</span><strong>' + (latest === '—' ? latest : 'v' + esc(latest)) + '</strong></div></div>';
       html += '<div class="update-version-summary"><strong>' + esc(versionState) + '</strong>' + (versionInfo?.source ? '<span>检测来源：' + esc(versionInfo.source) + '</span>' : '') + (versionInfo?.error ? '<span>' + esc(versionInfo.error) + '</span>' : '') + '</div>';
       if (versionInfo?.releaseNotes?.length) html += '<div class="android-release-notes"><div><strong>更新内容</strong><span>v' + esc(versionInfo.latest) + (versionInfo.fpkSize ? ' · ' + esc(fileSize(versionInfo.fpkSize)) : '') + '</span></div><ul>' + versionInfo.releaseNotes.map((item) => '<li>' + esc(item) + '</li>').join('') + '</ul></div>';
-      html += '<div class="update-message">正常覆盖升级会保留站点配置、密钥和历史数据。下载完成后请在飞牛应用中心手动安装新版 FPK；不要先卸载旧版。</div>';
-      html += '<div class="ops update-actions"><button type="button" class="btn primary" data-act="fnos-download"' + (!versionInfo?.fpkUrl ? ' disabled' : '') + '>' + icon('download') + ' ' + (versionInfo?.updateAvailable ? '下载 v' + esc(versionInfo.latest) + ' FPK' : '下载当前 FPK') + '</button></div></section>';
+      html += '<div class="update-message">应用会在内部下载官方 FPK 并交给飞牛应用中心覆盖升级，站点配置、密钥和历史数据会保留；不要先卸载旧版。</div>';
+      if (busy || update.message) html += '<div class="android-download-state ' + esc(update.state || '') + '" role="status" aria-live="polite"><div><span>' + esc(update.message || '正在准备更新') + '</span><strong>' + (Number.isFinite(Number(update.progress)) ? esc(update.progress) + '%' : '') + '</strong></div><div class="android-progress' + (Number(update.progress) <= 0 && busy ? ' indeterminate' : '') + '" role="progressbar" aria-label="FPK 更新进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + esc(Number(update.progress) || 0) + '"><i style="width:' + esc(Number(update.progress) || 0) + '%"></i></div></div>';
+      html += '<div class="ops update-actions"><button type="button" class="btn primary" data-act="fnos-update"' + (!versionInfo?.updateAvailable || busy ? ' disabled' : '') + '>' + icon(busy ? 'refresh' : 'download') + ' ' + (busy ? '正在更新…' : versionInfo?.updateAvailable ? '立即更新到 v' + esc(versionInfo.latest) : '当前已是最新版') + '</button></div></section>';
       return html;
     }
     if (androidVersion) html += '<div class="update-section-title"><strong>服务端程序</strong><span>更新 NAS 或 Docker 中运行的 API Balance</span></div>';
@@ -915,6 +921,33 @@
       + '<button type="button" class="feedback-copy" data-act="copy-email" title="复制邮箱">' + icon('copy') + '<span>复制</span></button></div>'
       + '<div class="app-modal-actions"><button type="button" class="btn" data-act="feedback-close">关闭</button>'
       + '<a class="btn primary" href="mailto:avhlune@gmail.com?subject=API%20Balance%20反馈">发送邮件</a></div></section></div>';
+  }
+
+  function renderPaymentButtons() {
+    return '<div class="license-payment-actions"><button type="button" class="btn payment-alipay" data-act="payment-open" data-method="alipay">支付宝</button>'
+      + '<button type="button" class="btn payment-wechat" data-act="payment-open" data-method="wechat">微信</button>'
+      + '<button type="button" class="btn" data-act="payment-open" data-method="email">' + icon('mail') + ' 联系邮箱</button></div>';
+  }
+
+  function renderPurchaseModal() {
+    const license = DATA.settings?.license || {};
+    const email = license.contactEmail || 'avhlune@gmail.com';
+    const installId = license.installId || '';
+    const subject = encodeURIComponent('API Balance 激活码申请');
+    const body = encodeURIComponent('你好，我已支付 10 元购买 API Balance 完整功能。\n\n安装编号：' + installId + '\n转账单号：\n\n我会在邮件中附上付款截图。');
+    if (purchaseModal === 'email') {
+      return '<div class="app-modal-backdrop"><section class="app-modal payment-modal" role="dialog" aria-modal="true" aria-labelledby="payment-title">'
+        + '<h2 id="payment-title">联系邮箱领取激活码</h2><p>请把付款截图、转账单号和安装编号发送到下面的邮箱。</p>'
+        + '<div class="feedback-address-row"><a class="feedback-address" href="mailto:' + esc(email) + '?subject=' + subject + '&body=' + body + '">' + esc(email) + '</a><button type="button" class="feedback-copy" data-act="copy-email" title="复制邮箱">' + icon('copy') + '<span>复制</span></button></div>'
+        + '<div class="payment-install-id"><span>安装编号</span><code>' + esc(installId) + '</code></div><small class="payment-help">发送付款截图及转账单号，24 小时内会通过邮箱回复激活码。</small>'
+        + '<div class="app-modal-actions"><button type="button" class="btn" data-act="payment-close">关闭</button><a class="btn primary" href="mailto:' + esc(email) + '?subject=' + subject + '&body=' + body + '">发送邮件</a></div></section></div>';
+    }
+    const alipay = purchaseModal === 'alipay';
+    const name = alipay ? '支付宝' : '微信';
+    const image = alipay ? 'payments/alipay.png' : 'payments/wechat.png';
+    return '<div class="app-modal-backdrop"><section class="app-modal payment-modal" role="dialog" aria-modal="true" aria-labelledby="payment-title">'
+      + '<h2 id="payment-title">' + name + '付款</h2><p>使用' + name + '扫码支付 10 元。</p><figure class="payment-qr"><img src="' + image + '" alt="' + name + '收款二维码"><figcaption>' + name + ' · 10 元</figcaption></figure>'
+      + '<small class="payment-help">付款后请发送截图及转账单号，24 小时内会通过邮箱回复激活码。</small><div class="app-modal-actions"><button type="button" class="btn" data-act="payment-close">关闭</button><button type="button" class="btn primary" data-act="payment-open" data-method="email">联系邮箱</button></div></section></div>';
   }
 
   function renderSidebar() {
@@ -988,7 +1021,7 @@
 
   function renderMobileNav() {
     const current = !settingsOpen ? 'overview' : settingsView;
-    return '<nav class="mobile-bottom-nav" aria-label="底部导航">'
+    return '<nav class="mobile-bottom-nav" aria-label="底部导航"' + (updateConfirmOpen || feedbackOpen || purchaseModal ? ' inert' : '') + '>'
       + '<button type="button" class="' + (current === 'overview' ? 'active' : '') + '" data-act="sidebar-view" data-view="overview"><span class="mobile-nav-icon">' + icon('home') + '</span><span>总览</span></button>'
       + '<button type="button" class="' + (current === 'add' ? 'active' : '') + '" data-act="sidebar-view" data-view="add"><span class="mobile-nav-icon">' + icon('plus') + '</span><span>添加</span></button>'
       + '<button type="button" class="' + (current === 'stations' ? 'active' : '') + '" data-act="sidebar-view" data-view="stations"><span class="mobile-nav-icon">' + icon('server') + '</span><span>管理</span></button>'
@@ -1112,11 +1145,12 @@
     const stations = Array.isArray(DATA.stations) ? DATA.stations : [];
 
     const pageTitle = settingsOpen ? ({ general: '通用设置', notify: '推送设置', add: '添加站点', update: '程序更新', stations: '站点管理', docs: 'API 文档' }[settingsView] || '控制台') : '控制台';
-    let html = '<div class="app-shell">' + renderSidebar() + '<main class="wrap"><div class="topbar"><div class="topbar-title"><span class="topbar-icon">' + icon('dashboard') + '</span><span>' + esc(pageTitle) + '</span></div><span class="topbar-state">API 余额与用量</span></div>';
+    let html = '<div class="app-shell"' + (updateConfirmOpen || feedbackOpen || purchaseModal ? ' inert' : '') + '>' + renderSidebar() + '<main class="wrap"><div class="topbar"><div class="topbar-title"><span class="topbar-icon">' + icon('dashboard') + '</span><span>' + esc(pageTitle) + '</span></div><span class="topbar-state">API 余额与用量</span></div>';
     if (settingsOpen) {
       html += renderSettingsPage(stations) + '</main></div>';
       if (updateConfirmOpen) html += renderUpdateConfirm();
       if (feedbackOpen) html += renderFeedback();
+      if (purchaseModal) html += renderPurchaseModal();
       root.innerHTML = html + renderMobileNav();
       return;
     }
@@ -1149,6 +1183,7 @@
 
     if (updateConfirmOpen) html += renderUpdateConfirm();
     if (feedbackOpen) html += renderFeedback();
+    if (purchaseModal) html += renderPurchaseModal();
     root.innerHTML = html + renderMobileNav();
   }
 
@@ -1298,7 +1333,7 @@
     if (view === 'add' && license && !license.active && DATA.stations.length >= Number(license.stationLimit || 2)) {
       settingsOpen = true; settingsView = 'general'; editingStationId = null;
       renderMainRaw();
-      toast('免费版最多添加 ' + (license.stationLimit || 2) + ' 个站点，请先激活完整功能', 'bad');
+      toast('免费版最多添加 ' + (license.stationLimit || 2) + ' 个站点，支付 10 元可解锁完整功能', 'bad');
       window.setTimeout(() => root.querySelector('#license-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
       return;
     }
@@ -1335,6 +1370,19 @@
       window.setTimeout(restoreModalFocus, 0);
       return;
     }
+    if (action === 'payment-open') {
+      modalReturnAction = action;
+      purchaseModal = button.dataset.method || 'email';
+      renderMainRaw();
+      window.setTimeout(() => root.querySelector('[data-act="payment-close"]')?.focus(), 0);
+      return;
+    }
+    if (action === 'payment-close') {
+      purchaseModal = '';
+      renderMainRaw();
+      window.setTimeout(restoreModalFocus, 0);
+      return;
+    }
     if (action === 'copy-email') {
       const email = 'avhlune@gmail.com';
       try {
@@ -1363,10 +1411,14 @@
       }
       return;
     }
-    if (action === 'fnos-download') {
-      if (!versionInfo?.fpkUrl) return toast('请先检查更新', 'bad');
-      window.open(versionInfo.fpkUrl, '_blank', 'noopener');
-      toast('已交给浏览器下载，完成后请在飞牛应用中心安装', 'ok');
+    if (action === 'fnos-update') {
+      if (!versionInfo?.updateAvailable) return toast('当前没有可安装的新版本', 'bad');
+      const body = await post('/api/update', {});
+      if (!body.ok) return toast(body.error || '无法开始更新', 'bad');
+      DATA.settings.update = body.data;
+      renderMainRaw();
+      toast('已开始在应用内下载并安装', 'ok');
+      watchUpdate();
       return;
     }
     if (action === 'android-server') {
@@ -1705,9 +1757,10 @@
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
       }
     }
-    if (event.key === 'Escape' && (updateConfirmOpen || feedbackOpen)) {
+    if (event.key === 'Escape' && (updateConfirmOpen || feedbackOpen || purchaseModal)) {
       updateConfirmOpen = false;
       feedbackOpen = false;
+      purchaseModal = '';
       renderMainRaw();
       window.setTimeout(restoreModalFocus, 0);
       return;

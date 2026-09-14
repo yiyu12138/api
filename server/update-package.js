@@ -1,5 +1,8 @@
 'use strict';
 
+const fs = require('node:fs');
+const { pipeline } = require('node:stream/promises');
+
 function compareVersions(a, b) {
   const left = String(a).split('.').map(Number);
   const right = String(b).split('.').map(Number);
@@ -68,4 +71,34 @@ function parseFpkRelease(release, currentVersion) {
   };
 }
 
-module.exports = { compareVersions, validateBundleFilename, selectBundleTarget, validatePackageJson, parseFpkRelease };
+async function downloadReleaseAsset(url, file, options) {
+  const settings = options || {};
+  const maxBytes = Number(settings.maxBytes) || 100 * 1024 * 1024;
+  const response = await (settings.fetch || fetch)(url, {
+    headers: { Accept: 'application/octet-stream', 'User-Agent': settings.userAgent || 'api-balance' },
+    signal: AbortSignal.timeout(Number(settings.timeoutMs) || 90000),
+  });
+  if (!response.ok) throw new Error('安装包下载失败：HTTP ' + response.status);
+  const declared = Number(response.headers.get('content-length') || 0);
+  if (declared > maxBytes) throw new Error('FPK 安装包不能超过 100 MB');
+  if (!response.body) throw new Error('FPK 安装包没有下载内容');
+  let size = 0;
+  try {
+    await pipeline(response.body, async function* (chunks) {
+      for await (const chunk of chunks) {
+        size += chunk.byteLength;
+        if (size > maxBytes) throw new Error('FPK 安装包不能超过 100 MB');
+        if (settings.onProgress) settings.onProgress(size, declared || Number(settings.expectedSize) || 0);
+        yield chunk;
+      }
+    }, fs.createWriteStream(file, { mode: 0o600 }));
+    if (!size) throw new Error('FPK 安装包为空');
+    if (Number(settings.expectedSize) > 0 && size !== Number(settings.expectedSize)) throw new Error('FPK 安装包大小与 Release 记录不一致');
+    return size;
+  } catch (error) {
+    fs.rmSync(file, { force: true });
+    throw error;
+  }
+}
+
+module.exports = { compareVersions, validateBundleFilename, selectBundleTarget, validatePackageJson, parseFpkRelease, downloadReleaseAsset };

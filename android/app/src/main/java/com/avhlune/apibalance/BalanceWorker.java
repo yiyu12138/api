@@ -197,6 +197,7 @@ public final class BalanceWorker extends Worker {
     }
 
     private static void checkNotifications(JSONObject config, JSONArray stations) throws Exception {
+        if (!MainActivity.verifyLicenseCode(config.optString("licenseCode"), config.optString("installId"))) return;
         JSONObject notify = config.optJSONObject("notify");
         JSONObject channels = notify == null ? null : notify.optJSONObject("channels");
         if (channels == null || currentTime().compareTo(notify.optString("pushTime", "09:00")) < 0) return;
