@@ -756,10 +756,21 @@
     return html;
   }
 
+  function renderOfficialProviderRows() {
+    const authLabels = { bearer: 'Bearer Key', 'x-api-key': 'X-API-Key', query: 'URL 参数 key' };
+    return PRESETS.filter((preset) => preset.group === '官方厂商' && preset.id !== 'compatible').map((preset) => {
+      const path = preset.balanceAvailable ? preset.path : preset.testPaths?.[0];
+      const base = preset.baseUrl.replace(/\/$/, '');
+      const endpoint = preset.kind === 'billing' ? base + '/v1/dashboard/billing/*，失败后 ' + base + path : (path ? base + path : base);
+      return '<tr><td>' + esc(preset.name) + '</td><td><code>' + esc(endpoint) + '</code></td><td>' + esc(authLabels[preset.auth] || preset.auth || '无') + '</td><td>'
+        + (preset.balanceAvailable ? esc((preset.currency || '原币') + ' 余额') : '仅检测 Key') + '</td><td>' + esc(preset.note || '') + '</td></tr>';
+    }).join('');
+  }
+
   function renderDocs() {
     const chapters = [
       ['docs-start', '项目说明'], ['docs-overview', '余额总览'], ['docs-add', '添加站点'],
-      ['docs-query', '余额查询配置'], ['docs-manage', '站点管理'], ['docs-usage', '用量统计'],
+      ['docs-query', '余额查询配置'], ['docs-official', '官方 AI 接口'], ['docs-manage', '站点管理'], ['docs-usage', '用量统计'],
       ['docs-general', '通用设置'], ['docs-notify', '推送设置'], ['docs-http', 'HTTP API'], ['docs-update', '程序更新'], ['docs-fnos', '飞牛 fnOS'], ['docs-android', 'Android 应用'], ['docs-security', '数据与安全'], ['docs-faq', '常见问题'],
     ];
     const faqs = [
@@ -810,6 +821,12 @@
       + '<h3>用户 ID 与 New API</h3><p>用户 ID 只在接口明确要求时填写。中转站自动识别模板会把它作为 <code>New-Api-User</code> 请求头发送；New API 或部分其他站点通常需要“系统访问令牌 + 用户 ID”。普通 API Key 查询一般留空。</p>'
       + '<h3>交给 AI 时使用的模板</h3><p>把下面任务、本页文档和中转站接口文档一起发给 AI。若平台文档没有提供某个字段，要求 AI 写“留空”，不要猜测。</p>'
       + '<div class="docs-code docs-prompt"><code>请根据中转站接口文档，为 API Balance 生成配置。<br>只使用文档明确给出的接口和字段，不要猜测，不要使用真实密钥。<br>请依次输出：<br>1. 地址<br>2. 余额请求方法、认证方式和参数名称<br>3. 余额请求 JSON（不需要则留空）<br>4. 余额请求 URL<br>5. 剩余、已用、总额度和套餐名称 JSON 路径<br>6. 余额换算除数、币种及计算依据<br>7. 是否需要用户 ID<br>8. 用量接口 URL（没有则留空）<br>9. 用量请求方法、认证方式、参数名称和请求 JSON<br>10. 完整用量字段映射 JSON<br>11. 用量 costCurrency 与 costDivisor 及依据<br>12. 接口返回周期汇总还是逐条日志<br>最后用响应示例逐项验证路径，列出缺失字段，并说明测试后应显示什么。</code></div></section>'
+      + '<section id="docs-official"><p class="docs-kicker">03A</p><h2>官方 AI 接口</h2><p>添加官方厂商时，在“添加站点”选择对应模板并填写 API Key。地址、认证方式和解析字段会自动带入；点击“测试查询”确认结果后再保存，不需要手工填写下面的请求地址。</p>'
+      + '<div class="docs-table-wrap"><table><thead><tr><th>平台模板</th><th>程序请求地址</th><th>认证</th><th>可显示</th><th>说明</th></tr></thead><tbody>' + renderOfficialProviderRows()
+      + '<tr><td>阿里云百炼 / DashScope</td><td>暂未内置余额查询</td><td>DashScope API Key</td><td>不能查询余额</td><td>阿里云账户余额由 BSS OpenAPI 提供，需要 AccessKey 签名和 RAM 权限，不能使用普通模型 API Key。</td></tr></tbody></table></div>'
+      + '<h3>配置步骤</h3><ol><li>进入“添加站点”，在预设模板中选择官方厂商。</li><li>确认自动填写的官方地址，只粘贴对应平台的 API Key。</li><li>点击“测试查询”。开放余额接口的平台会返回原币余额；其余平台只验证 Key 是否可用。</li><li>测试通过后保存。显示“Key 可用”不代表余额为 0，只代表厂商没有向普通 Key 开放余额接口。</li></ol>'
+      + '<div class="docs-callout warning"><strong>不要填写模型对话接口</strong><span><code>/chat/completions</code> 等模型调用地址会产生实际请求或费用，不是余额接口。硅基流动已停用旧的 <code>/v1/user/info</code>，目前模板只检测 Key。</span></div>'
+      + '<p>核对依据：<a href="https://api-docs.deepseek.com/api/get-user-balance/" target="_blank" rel="noopener noreferrer">DeepSeek 余额接口</a>、<a href="https://openrouter.ai/docs/api/api-reference/credits/get-credits" target="_blank" rel="noopener noreferrer">OpenRouter Credits</a>、<a href="https://help.aliyun.com/en/user-center/developer-reference/api-bssopenapi-2017-12-14-queryaccountbalance" target="_blank" rel="noopener noreferrer">阿里云账户余额接口</a>、<a href="https://docs.siliconflow.cn/docs/release-notes/overview" target="_blank" rel="noopener noreferrer">硅基流动接口变更</a>。</p></section>'
       + '<section id="docs-manage"><p class="docs-kicker">04</p><h2>站点管理</h2><p>这里集中维护已有站点。可按标签筛选、按余额或名称排序，也可直接启用、停用、编辑、测试、刷新和删除站点。</p>'
       + '<ul><li><strong>启用/停用：</strong>停用后保留配置，但不参与自动刷新和总额统计。</li><li><strong>测试查询：</strong>验证当前编辑内容，不必先覆盖已保存配置。</li><li><strong>立即刷新：</strong>重新获取单个站点数据。</li><li><strong>删除站点：</strong>确认后移除站点配置及其本地历史记录，此操作不可撤销。</li></ul></section>'
       + '<section id="docs-usage"><p class="docs-kicker">05</p><h2>用量统计</h2><p>总览下方可切换今日、昨日、近 7 天和近 30 天，查看消费、请求次数、输入与输出 Token、缓存读写、模型排行和最近请求。</p>'

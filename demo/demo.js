@@ -33,7 +33,7 @@
     webhook: { enabled: false, urlConfigured: false, urlMask: '' },
   };
   const state = {
-    version: '1.16.1', stations,
+    version: '1.16.6', stations,
     summary: { totalUsd: stations.reduce((sum, item) => sum + item.last.balanceUsd, 0), normal: 1, low: 1, failed: 0, unknown: 0, count: 2 },
     settings: {
       refreshMinutes: 30, timeoutMs: 12000, thresholdDefaultUsd: 10,
@@ -65,13 +65,7 @@
     };
   };
 
-  const presets = [{
-    id: 'relay-auto', group: '中转站', name: '中转站（自动识别）', kind: 'relay', icon: '↔', baseUrl: '',
-    currency: 'USD', rawPerUnit: 500000, balanceAvailable: true, note: '演示用自动识别模板',
-  }, {
-    id: 'custom', group: '自定义', name: '自定义余额路径', kind: 'custom', icon: '⌘', baseUrl: '',
-    currency: 'USD', rawPerUnit: 1, balanceAvailable: true, note: '按中转站文档填写接口与字段路径',
-  }];
+  const presets = window.APIBalanceProviders.PRESETS;
 
   const json = (data, status = 200) => Promise.resolve(new Response(JSON.stringify(data), {
     status, headers: { 'Content-Type': 'application/json; charset=utf-8' },

@@ -3,7 +3,7 @@
  * 厂商预设表。
  *
  * 说明（按 2026-09 各家公开文档核实）：
- *  - DeepSeek / Kimi / 硅基流动 / OpenRouter 开放了余额接口，填 Key 即可查。
+ *  - DeepSeek / Kimi / OpenRouter 开放了余额接口，填对应 Key 即可查。
  *  - OpenAI 普通 Key 读不到余额，自动降级为「Key 可用性检测」。
  *  - Gemini / Anthropic / 其它 OpenAI 兼容站未开放余额接口，只做 Key 可用性检测。
  * 余额类字段路径均来自官方文档，未验证过的接口一律不写。
@@ -77,18 +77,14 @@ const PRESETS = [
     id: 'siliconflow',
     group: '官方厂商',
     name: '硅基流动 SiliconFlow',
-    kind: 'balance',
+    kind: 'connectivity',
     icon: '⚡',
     baseUrl: 'https://api.siliconflow.cn',
-    path: '/v1/user/info',
     auth: 'bearer',
     currency: 'CNY',
-    rawPerUnit: 1,
-    balancePath: 'data.totalBalance',
-    extraPaths: { 充值余额: 'data.chargeBalance' },
     testPaths: ['/v1/models'],
-    balanceAvailable: true,
-    note: '官方开放余额接口，只填 Key 即可。',
+    balanceAvailable: false,
+    note: '官方已于 2026-08-14 停用 /v1/user/info，目前只检测 Key；等待官方公布新的余额接口。',
   },
   {
     id: 'openrouter-credits',

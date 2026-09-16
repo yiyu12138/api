@@ -29,8 +29,8 @@ tasks.register('prepareStandaloneAssets', Sync) {
             '<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">'
         )
         index.text = index.getText('UTF-8').replace('<body>', '<body>' + icons).replace(
-            '<script src="app.js?v=20260915-2"></script>',
-            '<script src="providers.js"></script><script src="probe.js"></script><script src="standalone.js"></script><script src="app.js?v=20260915-2"></script>'
+            '<script src="app.js?v=20260916-1"></script>',
+            '<script src="providers.js"></script><script src="probe.js"></script><script src="standalone.js"></script><script src="app.js?v=20260916-1"></script>'
         )
         def app = standaloneAssets.get().file('app.js').asFile
         def favicon = standaloneAssets.get().file('favicon.svg').asFile.bytes.encodeBase64().toString()

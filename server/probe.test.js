@@ -4,6 +4,15 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const { fromOpenAI, query, queryUsage, aggregateUsage } = require('./probe');
+const { getPreset } = require('./providers');
+
+test('停用的硅基流动余额接口不会再被请求', () => {
+  const preset = getPreset('siliconflow');
+  assert.equal(preset.kind, 'connectivity');
+  assert.equal(preset.balanceAvailable, false);
+  assert.equal(preset.path, undefined);
+  assert.deepEqual(preset.testPaths, ['/v1/models']);
+});
 
 test('Sole Credits stay in CNY after all period and model costs are displayed', async (t) => {
   const period = { requests: 12, promptTokens: 545500, completionTokens: 4201, totalTokens: 549701, cost: 0.238003, topModels: [{ modelName: 'gpt-test', cost: 0.191 }] };

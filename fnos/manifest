@@ -13,4 +13,4 @@ desktop_applaunchname = api-balance.main
 checkport             = false
 ctl_stop              = true
 disable_authorization_path = true
-changelog             = 飞牛应用改为直接更新 GitHub 程序代码，失败时自动恢复上一版
+changelog             = 新增官方 AI 接口配置文档，并停用失效的硅基流动余额接口
