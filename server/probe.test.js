@@ -14,6 +14,16 @@ test('停用的硅基流动余额接口不会再被请求', () => {
   assert.deepEqual(preset.testPaths, ['/v1/models']);
 });
 
+test('国内官方厂商使用无计费的模型列表检测 Key', () => {
+  const ids = ['zhipu', 'aliyun-bailian', 'volcengine-ark', 'baidu-qianfan', 'tencent-tokenhub', 'minimax-cn', 'iflytek-spark'];
+  ids.forEach((id) => {
+    const preset = getPreset(id);
+    assert.equal(preset.kind, 'connectivity');
+    assert.equal(preset.balanceAvailable, false);
+    assert.deepEqual(preset.testPaths, ['/models']);
+  });
+});
+
 test('Sole Credits stay in CNY after all period and model costs are displayed', async (t) => {
   const period = { requests: 12, promptTokens: 545500, completionTokens: 4201, totalTokens: 549701, cost: 0.238003, topModels: [{ modelName: 'gpt-test', cost: 0.191 }] };
   const response = { periods: { today: period, yesterday: period, last7d: period, last30d: period, missing: { cost: null } } };

@@ -13,4 +13,4 @@ desktop_applaunchname = api-balance.main
 checkport             = false
 ctl_stop              = true
 disable_authorization_path = true
-changelog             = 新增官方 AI 接口配置文档，并停用失效的硅基流动余额接口
+changelog             = 新增智谱、阿里百炼、火山方舟、百度千帆、腾讯、MiniMax 和讯飞星火模板
