@@ -1,0 +1,57 @@
+{
+  "description" : "API Balance 纯本地直连小组件：自动获取实时 USD\/CNY 汇率，API URL 与 API Key 均在 Scripting 中配置，无需服务器",
+  "color" : "systemBlue",
+  "runInApp" : false,
+  "icon" : "chart.bar.xaxis",
+  "author" : {
+    "name" : "Avhlune",
+    "homepage" : null,
+    "email" : null
+  },
+  "name" : "API Balance Direct",
+  "remoteResource" : null,
+  "intentInputTypes" : [
+
+  ],
+  "permissions" : [
+    "calendar",
+    "reminders",
+    "alarms",
+    "contacts",
+    "location",
+    "homeKit",
+    "photos",
+    "health",
+    "cloudSharedData",
+    "clipboard",
+    "fileSystem"
+  ],
+  "entry" : "index.tsx",
+  "iconImage" : "",
+  "contributors" : [
+
+  ],
+  "version" : "2.6.4",
+  "localizedDescriptions" : {
+    "fr" : "",
+    "es" : "",
+    "pt" : "",
+    "ru" : "",
+    "it" : "",
+    "zh" : "无需服务器，直接显示各中转站余额和今日消耗金额",
+    "ja" : "",
+    "de" : "",
+    "en" : "Serverless direct API balance widget with live FX conversion"
+  },
+  "localizedNames" : {
+    "en" : "API Balance Direct",
+    "pt" : "",
+    "it" : "",
+    "fr" : "",
+    "es" : "",
+    "ru" : "",
+    "ja" : "",
+    "de" : "",
+    "zh" : "API Balance 直连版"
+  }
+}
